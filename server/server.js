@@ -6616,6 +6616,28 @@ const mod4 = {
     setCookie: setCookie,
     deleteCookie: deleteCookie
 };
+class Feature {
+    featureFlags;
+    constructor(ctx){
+        this.featureFlags = ctx.request.cookies.featureFlags ? ctx.request.cookies.featureFlags.split(':') : [];
+        const appSettingFlags = ctx.appSettings.featureFlags ? ctx.appSettings.featureFlags.split(':') : [];
+        this.featureFlags.push(...appSettingFlags);
+    }
+    async flag(obj) {
+        for(let prop in obj){
+            let found = false;
+            const flags = prop.split(':');
+            for (let flag1 of flags){
+                if (this.featureFlags.includes(flag1) || flag1 == 'default') {
+                    await obj[prop]();
+                    found = true;
+                    break;
+                }
+            }
+            if (found) break;
+        }
+    }
+}
 class JSphereTestRunner {
     tags;
     beforeAllTestCasesStack = [];
@@ -6735,32 +6757,6 @@ class JSphereTestRunner {
         }
     };
 }
-async function handleRequest(request) {
-    let response = false;
-    return response;
-}
-const mod5 = {
-    handleRequest: handleRequest
-};
-async function handleRequest1(request) {
-    const url = new URL(request.url);
-    if (url.pathname == '/~/healthcheck' && request.method == 'GET') {
-        return new Response('OK', {
-            status: 200
-        });
-    }
-    return false;
-}
-const mod6 = {
-    handleRequest: handleRequest1
-};
-async function handleRequest2(request) {
-    let response = false;
-    return response;
-}
-const mod7 = {
-    handleRequest: handleRequest2
-};
 class FileSystemProvider {
     config = {};
     constructor(config3){
@@ -6829,33 +6825,11 @@ class GitHubProvider {
         return null;
     }
 }
-class Feature {
-    featureFlags;
-    constructor(ctx){
-        this.featureFlags = ctx.request.cookies.featureFlags ? ctx.request.cookies.featureFlags.split(':') : [];
-        const appSettingFlags = ctx.appSettings.featureFlags ? ctx.appSettings.featureFlags.split(':') : [];
-        this.featureFlags.push(...appSettingFlags);
-    }
-    async flag(obj) {
-        for(let prop in obj){
-            let found = false;
-            const flags = prop.split(':');
-            for (let flag1 of flags){
-                if (this.featureFlags.includes(flag1) || flag1 == 'default') {
-                    await obj[prop]();
-                    found = true;
-                    break;
-                }
-            }
-            if (found) break;
-        }
-    }
-}
 const handlers = [];
-async function handleRequest3(request) {
+async function handleRequest(request) {
     let response = false;
     const url = new URL(request.url);
-    if (mod8.context.state.tenantInitialized[url.hostname] === false) {
+    if (mod5.context.state.tenantInitialized[url.hostname] === false) {
         return new Response('Oops.  Your application is initializing. Please wait, then try your request again.', {
             status: 503,
             headers: {
@@ -6865,7 +6839,125 @@ async function handleRequest3(request) {
     }
     return response;
 }
-async function handleRequest4(request) {
+async function handleRequest1(request) {
+    debugger;
+    let response = false;
+    const url = new URL(request.url);
+    let tenant = mod5.context.tenants[url.hostname];
+    if (!url.pathname.startsWith('/~/') && url.hostname != '127.0.0.1' && !tenant) {
+        mod5.context.state.tenantInitialized[url.hostname] = false;
+        try {
+            let file = await mod5.context.repo.getFileContent(`tenants/${url.hostname}.json`, '.jsphere');
+            if (file === null) throw 'Tenant Not Registered';
+            const tenantConfig = JSON.parse(file);
+            const Provider = mod5.context.repoProviders[tenantConfig.application.repo.provider];
+            if (Provider) {
+                const appRepo = new Provider({
+                    root: tenantConfig.application.repo.root,
+                    credentials: tenantConfig.application.repo.credentials
+                });
+                file = await appRepo.getFileContent(`applications/${tenantConfig.application.name}.json`, '.jsphere');
+                if (file === null) throw 'Tenant Application Not Specified';
+                const appConfig = JSON.parse(file);
+                mod5.context.tenants[url.hostname] = {
+                    tenantConfig,
+                    appConfig,
+                    repo: appRepo,
+                    packageItemCacheDTS: Date.now(),
+                    packageItemCache: {}
+                };
+            } else throw `Repo provider '${Provider}' not a registered provider.`;
+            mod5.context.state.tenantInitialized[url.hostname] = true;
+        } catch (e) {
+            mod5.context.state.tenantInitialized[url.hostname] = undefined;
+            console.log(`TenantInitHandler[${url.hostname}]`, e);
+            response = new Response(`TenantInitHandler[${url.hostname}]`, {
+                status: 500
+            });
+        }
+    }
+    return response;
+}
+async function runTestCommand(tenant, request) {
+    const { name , description , testSuites , params  } = await request.HTTPRequest.json();
+    const summary = {
+        name,
+        description,
+        tests: 0,
+        failures: 0,
+        time: 0,
+        testSuites: []
+    };
+    for (const testSuite of testSuites){
+        const testRunner = new JSphereTestRunner(testSuite.name, testSuite.description, testSuite.tags);
+        const codeContext = {
+            run: testRunner,
+            assert: chai$1.assert,
+            params
+        };
+        if (tenant.packageItemCache[testSuite.name] !== undefined) {
+            const code32 = await import(`http://127.0.0.1${request.routePath}?eTag=${tenant.hostname}:${tenant.packageItemCacheDTS}`);
+            await code32.default(codeContext);
+            try {
+                await testRunner.runTestSuite();
+                summary.time += testRunner.testSuiteSummary.time;
+                summary.tests += testRunner.testSuiteSummary.tests;
+                summary.failures += testRunner.testSuiteSummary.failures;
+                summary.testSuites.push(testRunner.testSuiteSummary);
+                continue;
+            } catch (e) {
+                console.log(e);
+            }
+        }
+        summary.failures++;
+        summary.testSuites.push({
+            name: testSuite.name,
+            description: testSuite.description,
+            tests: 0,
+            failures: 0,
+            time: 0,
+            testcases: []
+        });
+    }
+    return summary;
+}
+async function handleRequest2(request) {
+    let response = false;
+    const url = new URL(request.url);
+    const tenant = mod5.context.tenants[url.hostname];
+    if (url.pathname == '/~/healthcheck' && request.method == 'GET') {
+        return new Response('OK', {
+            status: 200
+        });
+    } else if (url.pathname == '/~/resettenant' && request.method == 'GET' && tenant) {
+        try {
+            delete mod5.context.tenants[url.hostname];
+            response = new Response('Tenant application was reset.', {
+                status: 200
+            });
+        } catch (e) {
+            response = new Response(e.message, {
+                status: 500
+            });
+        }
+    } else if (url.pathname == '/~/runtest' && request.method == 'POST') {
+        try {
+            const summary = runTestCommand(tenant, request);
+            response = new Response(JSON.stringify(summary), {
+                status: 200,
+                headers: {
+                    'content-type': 'application/json'
+                }
+            });
+        } catch (e) {
+            response = new Response(e.message, {
+                status: 500
+            });
+        }
+    }
+    return response;
+}
+async function handleRequest3(request) {
     let response = false;
     const url = new URL(request.url);
     if (url.hostname == '127.0.0.1' && request.method == 'GET' && request.HTTPRequest.headers.get('user-agent')?.startsWith('Deno')) {
@@ -6875,10 +6967,10 @@ async function handleRequest4(request) {
                 status: 404
             });
             const hostname = eTag.split(':')[0];
-            const tenant = mod8.context.tenants[hostname];
+            const tenant = mod5.context.tenants[hostname];
             let item = tenant.packageItemCache[url.pathname];
             if (!item) {
-                item = await mod8.getPackageItem(tenant, request.routePath);
+                item = await mod5.getPackageItem(tenant, request.routePath);
             }
             if (item) {
                 const content = parseContent(item.content, eTag);
@@ -6901,126 +6993,10 @@ async function handleRequest4(request) {
     }
     return response;
 }
-async function handleRequest5(request) {
-    debugger;
+async function handleRequest4(request) {
     let response = false;
     const url = new URL(request.url);
-    let tenant = mod8.context.tenants[url.hostname];
-    if (!tenant) {
-        mod8.context.state.tenantInitialized[url.hostname] = false;
-        try {
-            console.log(mod8);
-            let file = await mod8.context.repo.getFileContent(`tenants/${url.hostname}.json`, '.jsphere');
-            if (file === null) throw 'Tenant Not Registered';
-            const tenantConfig = JSON.parse(file);
-            const Provider = mod8.context.repoProviders[tenantConfig.application.repo.provider];
-            if (Provider) {
-                const appRepo = new Provider({
-                    root: tenantConfig.application.repo.root,
-                    credentials: tenantConfig.application.repo.credentials
-                });
-                file = await appRepo.getFileContent(`applications/${tenantConfig.application.name}.json`, '.jsphere');
-                if (file === null) throw 'Tenant Application Not Specified';
-                const appConfig = JSON.parse(file);
-                mod8.context.tenants[url.hostname] = {
-                    tenantConfig,
-                    appConfig,
-                    repo: appRepo,
-                    packageItemCacheDTS: Date.now(),
-                    packageItemCache: {}
-                };
-            } else throw `Repo provider '${Provider}' not a registered provider.`;
-            mod8.context.state.tenantInitialized[url.hostname] = true;
-        } catch (e) {
-            mod8.context.state.tenantInitialized[url.hostname] = undefined;
-            console.log(`TenantInitHandler[${url.hostname}]`, e);
-            response = new Response(`TenantInitHandler[${url.hostname}]`, {
-                status: 500
-            });
-        }
-    }
-    return response;
-}
-async function handleRequest6(request) {
-    let response = false;
-    const url = new URL(request.url);
-    const tenant = mod8.context.tenants[url.hostname];
-    if (url.pathname == '/~/resettenant' && request.method == 'GET') {
-        mod8.context.state.tenantApplicationReset[url.hostname] = true;
-        try {
-            tenant.packageItemCacheDTS = Date.now();
-            tenant.packageItemCache = {};
-            mod8.context.state.tenantApplicationReset[url.hostname] = false;
-            response = new Response('Tenant application was reset.', {
-                status: 200
-            });
-        } catch (e) {
-            mod8.context.state.tenantApplicationReset[url.hostname] = false;
-            response = new Response(e.message, {
-                status: 500
-            });
-        }
-    }
-    return response;
-}
-async function handleRequest7(request) {
-    let response = false;
-    const url = new URL(request.url);
-    const tenant = mod8.context.tenants[url.hostname];
-    if (url.pathname == '/~/runtest' && request.method == 'POST') {
-        const { name , description , testSuites , params  } = await request.HTTPRequest.json();
-        const summary = {
-            name,
-            description,
-            tests: 0,
-            failures: 0,
-            time: 0,
-            testSuites: []
-        };
-        for (const testSuite of testSuites){
-            const testRunner = new JSphereTestRunner(testSuite.name, testSuite.description, testSuite.tags);
-            const codeContext = {
-                run: testRunner,
-                assert: chai$1.assert,
-                params
-            };
-            if (tenant.packageItemCache[testSuite.name] !== undefined) {
-                const code32 = await import(`http://127.0.0.1${request.routePath}?eTag=${tenant.hostname}:${tenant.packageItemCacheDTS}`);
-                await code32.default(codeContext);
-                try {
-                    await testRunner.runTestSuite();
-                    summary.time += testRunner.testSuiteSummary.time;
-                    summary.tests += testRunner.testSuiteSummary.tests;
-                    summary.failures += testRunner.testSuiteSummary.failures;
-                    summary.testSuites.push(testRunner.testSuiteSummary);
-                    continue;
-                } catch (e) {
-                    console.log(e);
-                }
-            }
-            summary.failures++;
-            summary.testSuites.push({
-                name: testSuite.name,
-                description: testSuite.description,
-                tests: 0,
-                failures: 0,
-                time: 0,
-                testcases: []
-            });
-        }
-        response = new Response(JSON.stringify(summary), {
-            status: 200,
-            headers: {
-                'content-type': 'application/json'
-            }
-        });
-    }
-    return response;
-}
-async function handleRequest8(request) {
-    let response = false;
-    const url = new URL(request.url);
-    const tenant = mod8.context.tenants[url.hostname];
+    const tenant = mod5.context.tenants[url.hostname];
     if (tenant.appConfig.routeMappings) {
         for (let entry of tenant.appConfig.routeMappings){
             const mapping = {
@@ -7047,17 +7023,17 @@ async function handleRequest8(request) {
     }
     return response;
 }
-async function handleRequest9(request) {
+async function handleRequest5(request) {
     let response = false;
     const httpRequest = request.HTTPRequest;
     const url = new URL(request.url);
-    const tenant = mod8.context.tenants[url.hostname];
+    const tenant = mod5.context.tenants[url.hostname];
     const folder = request.routePath.split('/')[2];
     if (folder == 'client' && request.method == 'GET') {
         try {
             let item = tenant.packageItemCache[request.routePath];
             if (!item) {
-                item = await mod8.getPackageItem(tenant, request.routePath);
+                item = await mod5.getPackageItem(tenant, request.routePath);
             }
             if (item) {
                 let eTag = httpRequest.headers.get('if-none-match');
@@ -7090,10 +7066,10 @@ async function handleRequest9(request) {
     }
     return response;
 }
-async function handleRequest10(request) {
+async function handleRequest6(request) {
     let response = false;
     const url = new URL(request.url);
-    const tenant = mod8.context.tenants[url.hostname];
+    const tenant = mod5.context.tenants[url.hostname];
     const folder = request.routePath.split('/')[2];
     if (folder == 'server') {
         const parts = request.routePath.split('/');
@@ -7152,8 +7128,7 @@ class Utils {
 }
 const context = {
     state: {
-        tenantInitialized: {},
-        tenantApplicationReset: {}
+        tenantInitialized: {}
     },
     config: {},
     tenants: {},
@@ -7168,7 +7143,7 @@ async function init() {
     await setServerConfig();
     setRequestHandlers();
 }
-async function handleRequest11(request, connInfo) {
+async function handleRequest7(request, connInfo) {
     debugger;
     let response = false;
     let handlerIndex = 0;
@@ -7237,11 +7212,20 @@ async function setRepoProvider() {
     info(`Repo provider: ${envRepoProvider}`);
     info(`Repo root: ${envRepoRoot}`);
 }
-const mod8 = {
+const mod5 = {
     context: context,
     init: init,
-    handleRequest: handleRequest11,
+    handleRequest: handleRequest7,
     getPackageItem: getPackageItem
+};
+const mod6 = {
+    handleRequest: handleRequest
+};
+const mod7 = {
+    handleRequest: handleRequest1
+};
+const mod8 = {
+    handleRequest: handleRequest2
 };
 const mod9 = {
     handleRequest: handleRequest3
@@ -7255,18 +7239,6 @@ const mod11 = {
 const mod12 = {
     handleRequest: handleRequest6
 };
-const mod13 = {
-    handleRequest: handleRequest7
-};
-const mod14 = {
-    handleRequest: handleRequest8
-};
-const mod15 = {
-    handleRequest: handleRequest9
-};
-const mod16 = {
-    handleRequest: handleRequest10
-};
 async function setServerConfig() {
     const envServerConfig = Deno.env.get('SERVER_CONFIG');
     if (envServerConfig) {
@@ -7279,17 +7251,13 @@ async function setServerConfig() {
     } else warning(`No server configuration was specified. Server is unprotected.`);
 }
 function setRequestHandlers() {
-    handlers.push(mod9);
-    handlers.push(mod5);
     handlers.push(mod6);
+    handlers.push(mod7);
+    handlers.push(mod8);
+    handlers.push(mod9);
     handlers.push(mod10);
     handlers.push(mod11);
-    handlers.push(mod7);
     handlers.push(mod12);
-    handlers.push(mod13);
-    handlers.push(mod14);
-    handlers.push(mod15);
-    handlers.push(mod16);
 }
 function parseContent(content, eTag) {
     const textEncoder = new TextEncoder();
@@ -7306,7 +7274,7 @@ function parseContent(content, eTag) {
 }
 async function getAPIContext(request, routeParams) {
     const url = new URL(request.url);
-    const tenant = mod8.context.tenants[url.hostname];
+    const tenant = mod5.context.tenants[url.hostname];
     const apiContext = {
         tenant: getTenantContext(request),
         request: await getRequestContext(request, routeParams),
@@ -7319,7 +7287,7 @@ async function getAPIContext(request, routeParams) {
 }
 function getTenantContext(request) {
     const url = new URL(request.url);
-    const tenant = mod8.context.tenants[url.hostname];
+    const tenant = mod5.context.tenants[url.hostname];
     const tenantContext = {
         id: tenant.id,
         hostname: tenant.hostname,
@@ -7400,10 +7368,10 @@ class ResponseObject {
         });
     };
 }
-await mod8.init();
+await mod5.init();
 const serverPort = parseInt(Deno.env.get('SERVER_HTTP_PORT') || '80');
 const httpServer = new Server({
-    handler: mod8.handleRequest
+    handler: mod5.handleRequest
 });
 const listener = Deno.listen({
     hostname: '0.0.0.0',
