@@ -717,15 +717,15 @@ function warning(msg, ...args) {
     }
     return getLogger("default").warning(msg, ...args);
 }
-async function setup(config3) {
+async function setup(config2) {
     state.config = {
         handlers: {
             ...DEFAULT_CONFIG.handlers,
-            ...config3.handlers
+            ...config2.handlers
         },
         loggers: {
             ...DEFAULT_CONFIG.loggers,
-            ...config3.loggers
+            ...config2.loggers
         }
     };
     state.handlers.forEach((handler)=>{
@@ -2942,8 +2942,8 @@ var assertions = function(chai2, _) {
     Assertion2.addMethod("Throw", assertThrows);
     function respondTo(method, msg) {
         if (msg) flag3(this, "message", msg);
-        var obj = flag3(this, "object"), itself = flag3(this, "itself"), context = typeof obj === "function" && !itself ? obj.prototype[method] : obj[method];
-        this.assert(typeof context === "function", "expected #{this} to respond to " + _.inspect(method), "expected #{this} to not respond to " + _.inspect(method));
+        var obj = flag3(this, "object"), itself = flag3(this, "itself"), context1 = typeof obj === "function" && !itself ? obj.prototype[method] : obj[method];
+        this.assert(typeof context1 === "function", "expected #{this} to respond to " + _.inspect(method), "expected #{this} to not respond to " + _.inspect(method));
     }
     Assertion2.addMethod("respondTo", respondTo);
     Assertion2.addMethod("respondsTo", respondTo);
@@ -6761,14 +6761,14 @@ async function handleRequest2(request) {
 const mod7 = {
     handleRequest: handleRequest2
 };
-class Repo {
+class FileSystemProvider {
     config = {};
-    constructor(config4){
-        this.config = config4;
+    constructor(config3){
+        this.config = config3;
     }
-    async getFile(path58, repo1) {
+    async getFile(path58, repo) {
         debugger;
-        path58 = `${this.config.root}${repo1}/${path58.split('?')[0]}`;
+        path58 = `${this.config.root}${repo}/${path58.split('?')[0]}`;
         try {
             const result = await Deno.readFile(path58);
             return {
@@ -6779,8 +6779,8 @@ class Repo {
             return null;
         }
     }
-    async getFileContent(path59, repo2) {
-        path59 = `${this.config.root}${repo2}/${path59.split('?')[0]}`;
+    async getFileContent(path59, repo) {
+        path59 = `${this.config.root}${repo}/${path59.split('?')[0]}`;
         try {
             const result = await Deno.readFile(path59);
             const content = (new TextDecoder).decode(result);
@@ -6790,14 +6790,14 @@ class Repo {
         }
     }
 }
-class Repo1 {
+class GitHubProvider {
     config = {};
-    constructor(config5){
-        this.config = config5;
+    constructor(config4){
+        this.config = config4;
     }
-    async getFile(path60, repo3) {
+    async getFile(path60, repo) {
         debugger;
-        const url = `${this.config.root}${repo3}/contents/${path60}`;
+        const url = `${this.config.root}${repo}/contents/${path60}`;
         try {
             const response = await fetch(url, {
                 method: 'GET',
@@ -6808,13 +6808,11 @@ class Repo1 {
             const result = await response.json();
             if (result.sha) return result;
             else console.log(`WARNING: ${url} - ${result.message}`);
-        } catch (e) {
-            console.log(url, e.message);
-        }
+        } catch (e) {}
         return null;
     }
-    async getFileContent(path61, repo4) {
-        const url = `${this.config.root}${repo4}/contents/${path61}`;
+    async getFileContent(path61, repo) {
+        const url = `${this.config.root}${repo}/contents/${path61}`;
         try {
             const response = await fetch(url, {
                 method: 'GET',
@@ -6827,9 +6825,7 @@ class Repo1 {
                 const content = (new TextDecoder).decode(decode1(result.content));
                 return content;
             } else console.log(`WARNING: ${url} - ${result.message}`);
-        } catch (e) {
-            console.log(url, e.message);
-        }
+        } catch (e) {}
         return null;
     }
 }
@@ -6859,7 +6855,7 @@ const handlers = [];
 async function handleRequest3(request) {
     let response = false;
     const url = new URL(request.url);
-    if (mod8.state.tenantInitialized[url.hostname] === false) {
+    if (mod8.context.state.tenantInitialized[url.hostname] === false) {
         return new Response('Oops.  Your application is initializing. Please wait, then try your request again.', {
             status: 503,
             headers: {
@@ -6879,7 +6875,7 @@ async function handleRequest4(request) {
                 status: 404
             });
             const hostname = eTag.split(':')[0];
-            const tenant = mod8.tenants[hostname];
+            const tenant = mod8.context.tenants[hostname];
             let item = tenant.packageItemCache[url.pathname];
             if (!item) {
                 item = await mod8.getPackageItem(tenant, request.routePath);
@@ -6909,14 +6905,15 @@ async function handleRequest5(request) {
     debugger;
     let response = false;
     const url = new URL(request.url);
-    let tenant = mod8.tenants[url.hostname];
+    let tenant = mod8.context.tenants[url.hostname];
     if (!tenant) {
-        mod8.state.tenantInitialized[url.hostname] = false;
+        mod8.context.state.tenantInitialized[url.hostname] = false;
         try {
-            let file = await mod8.repo.getFileContent(`tenants/${url.hostname}.json`, '.jsphere');
+            console.log(mod8);
+            let file = await mod8.context.repo.getFileContent(`tenants/${url.hostname}.json`, '.jsphere');
             if (file === null) throw 'Tenant Not Registered';
             const tenantConfig = JSON.parse(file);
-            const Provider = mod8.repoProviders[tenantConfig.application.repo.provider];
+            const Provider = mod8.context.repoProviders[tenantConfig.application.repo.provider];
             if (Provider) {
                 const appRepo = new Provider({
                     root: tenantConfig.application.repo.root,
@@ -6925,7 +6922,7 @@ async function handleRequest5(request) {
                 file = await appRepo.getFileContent(`applications/${tenantConfig.application.name}.json`, '.jsphere');
                 if (file === null) throw 'Tenant Application Not Specified';
                 const appConfig = JSON.parse(file);
-                mod8.tenants[url.hostname] = {
+                mod8.context.tenants[url.hostname] = {
                     tenantConfig,
                     appConfig,
                     repo: appRepo,
@@ -6933,9 +6930,9 @@ async function handleRequest5(request) {
                     packageItemCache: {}
                 };
             } else throw `Repo provider '${Provider}' not a registered provider.`;
-            mod8.state.tenantInitialized[url.hostname] = true;
+            mod8.context.state.tenantInitialized[url.hostname] = true;
         } catch (e) {
-            mod8.state.tenantInitialized[url.hostname] = undefined;
+            mod8.context.state.tenantInitialized[url.hostname] = undefined;
             console.log(`TenantInitHandler[${url.hostname}]`, e);
             response = new Response(`TenantInitHandler[${url.hostname}]`, {
                 status: 500
@@ -6947,18 +6944,18 @@ async function handleRequest5(request) {
 async function handleRequest6(request) {
     let response = false;
     const url = new URL(request.url);
-    const tenant = mod8.tenants[url.hostname];
+    const tenant = mod8.context.tenants[url.hostname];
     if (url.pathname == '/~/resettenant' && request.method == 'GET') {
-        mod8.state.tenantApplicationReset[url.hostname] = true;
+        mod8.context.state.tenantApplicationReset[url.hostname] = true;
         try {
             tenant.packageItemCacheDTS = Date.now();
             tenant.packageItemCache = {};
-            mod8.state.tenantApplicationReset[url.hostname] = false;
+            mod8.context.state.tenantApplicationReset[url.hostname] = false;
             response = new Response('Tenant application was reset.', {
                 status: 200
             });
         } catch (e) {
-            mod8.state.tenantApplicationReset[url.hostname] = false;
+            mod8.context.state.tenantApplicationReset[url.hostname] = false;
             response = new Response(e.message, {
                 status: 500
             });
@@ -6969,7 +6966,7 @@ async function handleRequest6(request) {
 async function handleRequest7(request) {
     let response = false;
     const url = new URL(request.url);
-    const tenant = mod8.tenants[url.hostname];
+    const tenant = mod8.context.tenants[url.hostname];
     if (url.pathname == '/~/runtest' && request.method == 'POST') {
         const { name , description , testSuites , params  } = await request.HTTPRequest.json();
         const summary = {
@@ -7023,7 +7020,7 @@ async function handleRequest7(request) {
 async function handleRequest8(request) {
     let response = false;
     const url = new URL(request.url);
-    const tenant = mod8.tenants[url.hostname];
+    const tenant = mod8.context.tenants[url.hostname];
     if (tenant.appConfig.routeMappings) {
         for (let entry of tenant.appConfig.routeMappings){
             const mapping = {
@@ -7054,7 +7051,7 @@ async function handleRequest9(request) {
     let response = false;
     const httpRequest = request.HTTPRequest;
     const url = new URL(request.url);
-    const tenant = mod8.tenants[url.hostname];
+    const tenant = mod8.context.tenants[url.hostname];
     const folder = request.routePath.split('/')[2];
     if (folder == 'client' && request.method == 'GET') {
         try {
@@ -7096,7 +7093,7 @@ async function handleRequest9(request) {
 async function handleRequest10(request) {
     let response = false;
     const url = new URL(request.url);
-    const tenant = mod8.tenants[url.hostname];
+    const tenant = mod8.context.tenants[url.hostname];
     const folder = request.routePath.split('/')[2];
     if (folder == 'server') {
         const parts = request.routePath.split('/');
@@ -7153,17 +7150,19 @@ class Utils {
         return valueHash === hash;
     };
 }
-const state1 = {
-    tenantInitialized: {},
-    tenantApplicationReset: {}
+const context = {
+    state: {
+        tenantInitialized: {},
+        tenantApplicationReset: {}
+    },
+    config: {},
+    tenants: {},
+    repoProviders: {
+        FileSystem: FileSystemProvider,
+        GitHub: GitHubProvider
+    },
+    repo: null
 };
-const config2 = {};
-const tenants = {};
-const repoProviders = {
-    FileSystem: Repo,
-    GitHub: Repo1
-};
-let repo = null;
 async function init() {
     await setRepoProvider();
     await setServerConfig();
@@ -7199,7 +7198,7 @@ async function getPackageItem(tenant, path62) {
     const useLocalRepo = tenant.appConfig.packages[packageKey].useLocalRepo;
     let file;
     if (useLocalRepo === true) {
-        file = await repo.getFile(path62.substring(packageKey.length + 2) + (ref ? `?ref=${ref}` : ''), packageKey);
+        file = await context.repo.getFile(path62.substring(packageKey.length + 2) + (ref ? `?ref=${ref}` : ''), packageKey);
     } else {
         file = await tenant.repo.getFile(path62.substring(packageKey.length + 2) + (ref ? `?ref=${ref}` : ''), packageKey);
     }
@@ -7222,12 +7221,24 @@ async function getPackageItem(tenant, path62) {
         return null;
     }
 }
+async function setRepoProvider() {
+    const envRepoProvider = Deno.env.get('REPO_PROVIDER') || 'FileSystem';
+    const envRepoRoot = Deno.env.get('REPO_ROOT') || Deno.cwd();
+    const envRepoCredentials = Deno.env.get('REPO_CREDENTIALS');
+    const Provider = context.repoProviders[envRepoProvider];
+    if (Provider) context.repo = new Provider({
+        root: envRepoRoot,
+        credentials: envRepoCredentials
+    });
+    else warning(`Repo provider '${envRepoProvider}' not a registered provider. Defaulting to FileSystem provider.`);
+    if (context.repo == null) context.repo = new FileSystemProvider({
+        root: envRepoRoot
+    });
+    info(`Repo provider: ${envRepoProvider}`);
+    info(`Repo root: ${envRepoRoot}`);
+}
 const mod8 = {
-    state: state1,
-    config: config2,
-    tenants: tenants,
-    repoProviders: repoProviders,
-    repo: repo,
+    context: context,
     init: init,
     handleRequest: handleRequest11,
     getPackageItem: getPackageItem
@@ -7256,30 +7267,14 @@ const mod15 = {
 const mod16 = {
     handleRequest: handleRequest10
 };
-async function setRepoProvider() {
-    const envRepoProvider = Deno.env.get('REPO_PROVIDER') || 'FileSystem';
-    const envRepoRoot = Deno.env.get('REPO_ROOT') || Deno.cwd();
-    const envRepoCredentials = Deno.env.get('REPO_CREDENTIALS');
-    const Provider = repoProviders[envRepoProvider];
-    if (Provider) repo = new Provider({
-        root: envRepoRoot,
-        credentials: envRepoCredentials
-    });
-    else warning(`Repo provider '${envRepoProvider}' not a registered provider. Defaulting to FileSystem provider.`);
-    if (repo == null) repo = new Repo({
-        root: envRepoRoot
-    });
-    info(`Repo provider: ${envRepoProvider}`);
-    info(`Repo root: ${envRepoRoot}`);
-}
 async function setServerConfig() {
     const envServerConfig = Deno.env.get('SERVER_CONFIG');
     if (envServerConfig) {
         const path63 = `servers/${envServerConfig}.json`;
-        const content = await repo.getFileContent(path63, '.jsphere');
+        const content = await context.repo.getFileContent(path63, '.jsphere');
         if (content) {
             const serverConfig = JSON.parse(content);
-            Object.assign(config2, serverConfig);
+            Object.assign(context.config, serverConfig);
         } else warning(`Server is unprotected. Could not retrieve server configuration '.jsphere/${path63}'.`);
     } else warning(`No server configuration was specified. Server is unprotected.`);
 }
@@ -7311,7 +7306,7 @@ function parseContent(content, eTag) {
 }
 async function getAPIContext(request, routeParams) {
     const url = new URL(request.url);
-    const tenant = mod8.tenants[url.hostname];
+    const tenant = mod8.context.tenants[url.hostname];
     const apiContext = {
         tenant: getTenantContext(request),
         request: await getRequestContext(request, routeParams),
@@ -7324,12 +7319,10 @@ async function getAPIContext(request, routeParams) {
 }
 function getTenantContext(request) {
     const url = new URL(request.url);
-    const tenant = mod8.tenants[url.hostname];
+    const tenant = mod8.context.tenants[url.hostname];
     const tenantContext = {
         id: tenant.id,
         hostname: tenant.hostname,
-        cache: tenant.cache,
-        storage: tenant.storage,
         user: null
     };
     return tenantContext;
