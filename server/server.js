@@ -4851,6 +4851,22 @@ const path = isWindows ? mod : mod1;
 const { join: join2 , normalize: normalize2  } = path;
 const path1 = isWindows ? mod : mod1;
 const { basename: basename2 , delimiter: delimiter2 , dirname: dirname2 , extname: extname2 , format: format2 , fromFileUrl: fromFileUrl2 , isAbsolute: isAbsolute2 , join: join3 , normalize: normalize3 , parse: parse3 , relative: relative2 , resolve: resolve2 , sep: sep2 , toFileUrl: toFileUrl2 , toNamespacedPath: toNamespacedPath2 ,  } = path1;
+const hexTable = new TextEncoder().encode("0123456789abcdef");
+function encodedLen(n) {
+    return n * 2;
+}
+function encode(src) {
+    const dst = new Uint8Array(encodedLen(src.length));
+    for(let i = 0; i < dst.length; i++){
+        const v = src[i];
+        dst[i * 2] = hexTable[v >> 4];
+        dst[i * 2 + 1] = hexTable[v & 0x0f];
+    }
+    return dst;
+}
+function encodeToString(src) {
+    return new TextDecoder().decode(encode(src));
+}
 function decode(b64) {
     const binString = atob(b64);
     const size = binString.length;
@@ -6233,7 +6249,7 @@ const base64abc = [
     "+",
     "/", 
 ];
-function encode(data) {
+function encode1(data) {
     const uint8 = typeof data === "string" ? new TextEncoder().encode(data) : data instanceof Uint8Array ? data : new Uint8Array(data);
     let result = "", i;
     const l = uint8.length;
@@ -6264,22 +6280,6 @@ function decode1(b64) {
         bytes[i] = binString.charCodeAt(i);
     }
     return bytes;
-}
-const hexTable = new TextEncoder().encode("0123456789abcdef");
-function encodedLen(n) {
-    return n * 2;
-}
-function encode1(src) {
-    const dst = new Uint8Array(encodedLen(src.length));
-    for(let i = 0; i < dst.length; i++){
-        const v = src[i];
-        dst[i * 2] = hexTable[v >> 4];
-        dst[i * 2 + 1] = hexTable[v & 0x0f];
-    }
-    return dst;
-}
-function encodeToString(src) {
-    return new TextDecoder().decode(encode1(src));
 }
 class DenoStdInternalError2 extends Error {
     constructor(message){
@@ -6768,8 +6768,8 @@ class FileSystemProvider {
         try {
             const result = await Deno.readFile(path58);
             return {
-                name: path58.split('/').pop()?.split('.')[0],
-                content: encode(result)
+                name: path58.split('/').pop(),
+                content: encode1(result)
             };
         } catch (e) {
             return null;
@@ -6847,7 +6847,7 @@ async function handleRequest1(request) {
     if (!url.pathname.startsWith('/~/') && url.hostname != '127.0.0.1' && !tenant) {
         mod5.context.state.tenantInitialized[url.hostname] = false;
         try {
-            let file = await mod5.context.repo.getFileContent(`tenants/${url.hostname}.json`, '.jsphere');
+            let file = await mod5.context.repo.getFileContent(`.tenants/${url.hostname}.json`, '.jsphere');
             if (file === null) throw 'Tenant Not Registered';
             const tenantConfig = JSON.parse(file);
             const Provider = mod5.context.repoProviders[tenantConfig.application.repo.provider];
@@ -6856,7 +6856,7 @@ async function handleRequest1(request) {
                     root: tenantConfig.application.repo.root,
                     credentials: tenantConfig.application.repo.credentials
                 });
-                file = await appRepo.getFileContent(`applications/${tenantConfig.application.name}.json`, '.jsphere');
+                file = await appRepo.getFileContent(`.applications/${tenantConfig.application.name}.json`, '.jsphere');
                 if (file === null) throw 'Tenant Application Not Specified';
                 const appConfig = JSON.parse(file);
                 mod5.context.tenants[url.hostname] = {
@@ -7080,7 +7080,7 @@ async function handleRequest6(request) {
             module = await import(`http://127.0.0.1${request.routePath}?eTag=${url.hostname}:${tenant.packageItemCacheDTS}`);
         } catch (e) {
             if (e.message.startsWith('Module not found')) {
-                return response = new Response('Not Found', {
+                return response = new Response('Endpoint Not Found', {
                     status: 404
                 });
             } else {
@@ -7101,6 +7101,10 @@ async function handleRequest6(request) {
         } else if (func) {
             response = new Response('Method Not Allowed', {
                 status: 405
+            });
+        } else {
+            response = new Response('Endpoint Service Not Found', {
+                status: 404
             });
         }
     } else {
@@ -7180,10 +7184,12 @@ async function getPackageItem(tenant, path62) {
     if (file !== null) {
         const extension = extname2(file.name);
         const contentType = (extension == '.ts' ? 'application/typescript' : lookup(extension) || 'text/plain') + '; charset=utf-8';
+        const cryptoData = new TextEncoder().encode(file.content);
+        const eTag = file.sha || encodeToString(new Uint8Array(await crypto.subtle.digest("sha-256", cryptoData)));
         const packageItem = {
             contentType,
             content: decode(file.content),
-            eTag: file.sha
+            eTag
         };
         for(let entry in tenant.appConfig.packages[packageKey].packageItemConfig){
             if (path62.startsWith(`/${packageKey}${entry}`)) {
@@ -7212,11 +7218,24 @@ async function setRepoProvider() {
     info(`Repo provider: ${envRepoProvider}`);
     info(`Repo root: ${envRepoRoot}`);
 }
+async function setServerConfig() {
+    const envServerConfig = Deno.env.get('SERVER_CONFIG');
+    if (envServerConfig) {
+        const path63 = `.servers/${envServerConfig}.json`;
+        const content = await context.repo.getFileContent(path63, '.jsphere');
+        if (content) {
+            const serverConfig = JSON.parse(content);
+            Object.assign(context.config, serverConfig);
+        } else warning(`Server is unprotected. Could not retrieve server configuration '.jsphere/${path63}'.`);
+    } else warning(`No server configuration was specified. Server is unprotected.`);
+}
 const mod5 = {
     context: context,
     init: init,
     handleRequest: handleRequest7,
-    getPackageItem: getPackageItem
+    getPackageItem: getPackageItem,
+    setRepoProvider: setRepoProvider,
+    setServerConfig: setServerConfig
 };
 const mod6 = {
     handleRequest: handleRequest
@@ -7239,17 +7258,6 @@ const mod11 = {
 const mod12 = {
     handleRequest: handleRequest6
 };
-async function setServerConfig() {
-    const envServerConfig = Deno.env.get('SERVER_CONFIG');
-    if (envServerConfig) {
-        const path63 = `servers/${envServerConfig}.json`;
-        const content = await context.repo.getFileContent(path63, '.jsphere');
-        if (content) {
-            const serverConfig = JSON.parse(content);
-            Object.assign(context.config, serverConfig);
-        } else warning(`Server is unprotected. Could not retrieve server configuration '.jsphere/${path63}'.`);
-    } else warning(`No server configuration was specified. Server is unprotected.`);
-}
 function setRequestHandlers() {
     handlers.push(mod6);
     handlers.push(mod7);
