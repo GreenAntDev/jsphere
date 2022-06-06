@@ -6775,7 +6775,7 @@ class FileSystemProvider {
             return null;
         }
     }
-    async getFileContent(path59, repo) {
+    async getConfigFile(path59, repo) {
         path59 = `${this.config.root}${repo}/${path59.split('?')[0]}`;
         try {
             const result = await Deno.readFile(path59);
@@ -6793,21 +6793,36 @@ class GitHubProvider {
     }
     async getFile(path60, repo) {
         debugger;
-        const url = `${this.config.root}${repo}/contents/${path60}`;
+        let url;
         try {
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `token ${this.config.credentials}`
-                }
-            });
-            const result = await response.json();
-            if (result.sha) return result;
-            else console.log(`WARNING: ${url} - ${result.message}`);
+            if (this.config.credentials) {
+                url = `https://api.github.com/repos/${this.config.root}/${repo}/contents/${path60}`;
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `token ${this.config.credentials}`
+                    }
+                });
+                const result = await response.json();
+                if (result.sha) return result;
+                else console.log(`WARNING: ${url} - ${result.message}`);
+            } else {
+                const parts = path60.split('?');
+                const ref = parts[1] ? parts[1].split('=')[1] : 'main';
+                url = `https://raw.githubusercontent.com/${this.config.root}/${repo}/${ref}/${parts[0]}`;
+                const response = await fetch(url, {
+                    method: 'GET'
+                });
+                const result = await response.text();
+                return {
+                    name: path60.split('/').pop(),
+                    content: result
+                };
+            }
         } catch (e) {}
         return null;
     }
-    async getFileContent(path61, repo) {
+    async getConfigFile(path61, repo) {
         const url = `${this.config.root}${repo}/contents/${path61}`;
         try {
             const response = await fetch(url, {
@@ -6847,7 +6862,7 @@ async function handleRequest1(request) {
     if (!url.pathname.startsWith('/~/') && url.hostname != '127.0.0.1' && !tenant) {
         mod5.context.state.tenantInitialized[url.hostname] = false;
         try {
-            let file = await mod5.context.repo.getFileContent(`.tenants/${url.hostname}.json`, '.jsphere');
+            let file = await mod5.context.repo.getConfigFile(`.tenants/${url.hostname}.json`, '.jsphere');
             if (file === null) throw 'Tenant Not Registered';
             const tenantConfig = JSON.parse(file);
             const Provider = mod5.context.repoProviders[tenantConfig.application.repo.provider];
@@ -6856,7 +6871,7 @@ async function handleRequest1(request) {
                     root: tenantConfig.application.repo.root,
                     credentials: tenantConfig.application.repo.credentials
                 });
-                file = await appRepo.getFileContent(`.applications/${tenantConfig.application.name}.json`, '.jsphere');
+                file = await appRepo.getConfigFile(`.applications/${tenantConfig.application.name}.json`, '.jsphere');
                 if (file === null) throw 'Tenant Application Not Specified';
                 const appConfig = JSON.parse(file);
                 mod5.context.tenants[url.hostname] = {
@@ -7222,7 +7237,7 @@ async function setServerConfig() {
     const envServerConfig = Deno.env.get('SERVER_CONFIG');
     if (envServerConfig) {
         const path63 = `.servers/${envServerConfig}.json`;
-        const content = await context.repo.getFileContent(path63, '.jsphere');
+        const content = await context.repo.getConfigFile(path63, '.jsphere');
         if (content) {
             const serverConfig = JSON.parse(content);
             Object.assign(context.config, serverConfig);
