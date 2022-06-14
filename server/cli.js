@@ -1243,6 +1243,7 @@ async function processCreateProjectCmd(cmdArgs) {
             localConfig: '.jsphere'
         };
         await Deno.writeFile(`${projectName}/.env`, (new TextEncoder).encode(getEnvContent(envSettings)));
+        await Deno.writeFile(`${projectName}/DockerFile`, (new TextEncoder).encode(getDockerFileContent(projectName)));
         if (cmdArgs.init) {
             await Deno.mkdir(`${projectName}/.jsphere`, {
                 recursive: true
@@ -1302,7 +1303,7 @@ async function processRunCmd(cmdArgs) {
             '--allow-all',
             '--no-check',
             '--inspect=0.0.0.0:9229',
-            'C:/_GreenAntSolutions/Repositories/JSphereServer/jsphere/server.ts',
+            'https://deno.land/x/jsphere/server.ts',
             `${cliConfig.currentProject}`
         ]
     });
@@ -1437,6 +1438,19 @@ function getServerIndexContent() {
     return ctx.response.text('Hello JSphere');
 }
 message.attributes = { method: 'GET' };
+`;
+    return content;
+}
+function getDockerFileContent(projectName) {
+    const content = `FROM --platform=linux/amd64 ubuntu
+FROM denoland/deno:ubuntu
+WORKDIR /${projectName}
+COPY . .
+WORKDIR /
+RUN deno cache https://deno.land/x/jsphere/server.js
+EXPOSE 80
+EXPOSE 9229
+ENTRYPOINT ["deno", "run", "--allow-all", "--inspect=0.0.0.0:9229", "--no-check", "https://deno.land/x/jsphere/server.js", "${projectName}"]
 `;
     return content;
 }

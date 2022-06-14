@@ -14,10 +14,10 @@ function difference(arrA, arrB) {
     return arrA.filter((a)=>arrB.indexOf(a) < 0);
 }
 function parse(rawDotenv) {
-    const env = {};
+    const env1 = {};
     for (const line of rawDotenv.split("\n")){
         if (!isVariableStart(line)) continue;
-        const key = line.slice(0, line.indexOf("=")).trim();
+        const key1 = line.slice(0, line.indexOf("=")).trim();
         let value = line.slice(line.indexOf("=") + 1).trim();
         if (hasSingleQuotes(value)) {
             value = value.slice(1, -1);
@@ -25,9 +25,9 @@ function parse(rawDotenv) {
             value = value.slice(1, -1);
             value = expandNewlines(value);
         } else value = value.trim();
-        env[key] = value;
+        env1[key1] = value;
     }
-    return env;
+    return env1;
 }
 const defaultConfigOptions = {
     path: `.env`,
@@ -45,9 +45,9 @@ async function config(options = {}) {
     const conf = await parseFileAsync(o.path);
     if (o.defaults) {
         const confDefaults = await parseFileAsync(o.defaults);
-        for(const key in confDefaults){
-            if (!(key in conf)) {
-                conf[key] = confDefaults[key];
+        for(const key2 in confDefaults){
+            if (!(key2 in conf)) {
+                conf[key2] = confDefaults[key2];
             }
         }
     }
@@ -56,9 +56,9 @@ async function config(options = {}) {
         assertSafe(conf, confExample, o.allowEmptyValues);
     }
     if (o.export) {
-        for(const key in conf){
-            if (Deno.env.get(key) !== undefined) continue;
-            Deno.env.set(key, conf[key]);
+        for(const key3 in conf){
+            if (Deno.env.get(key3) !== undefined) continue;
+            Deno.env.set(key3, conf[key3]);
         }
     }
     return conf;
@@ -112,7 +112,7 @@ var LogLevels;
     LogLevels1[LogLevels1["ERROR"] = 40] = "ERROR";
     LogLevels1[LogLevels1["CRITICAL"] = 50] = "CRITICAL";
 })(LogLevels || (LogLevels = {}));
-Object.keys(LogLevels).filter((key)=>isNaN(Number(key)));
+Object.keys(LogLevels).filter((key4)=>isNaN(Number(key4)));
 const byLevel = {
     [String(LogLevels.NOTSET)]: "NOTSET",
     [String(LogLevels.DEBUG)]: "DEBUG",
@@ -866,13 +866,13 @@ async function setup(config2) {
 }
 await setup(DEFAULT_CONFIG);
 const { hasOwn  } = Object;
-function get(obj, key) {
-    if (hasOwn(obj, key)) {
-        return obj[key];
+function get(obj, key5) {
+    if (hasOwn(obj, key5)) {
+        return obj[key5];
     }
 }
-function getForce(obj, key) {
-    const v = get(obj, key);
+function getForce(obj, key6) {
+    const v = get(obj, key6);
     assert(v != null);
     return v;
 }
@@ -883,8 +883,8 @@ function isNumber(x) {
 }
 function hasKey(obj, keys) {
     let o = obj;
-    keys.slice(0, -1).forEach((key)=>{
-        o = get(o, key) ?? {};
+    keys.slice(0, -1).forEach((key7)=>{
+        o = get(o, key7) ?? {};
     });
     const key1 = keys[keys.length - 1];
     return key1 in o;
@@ -904,26 +904,26 @@ function parse1(args9, { "--": doubleDash = false , alias: alias3 = {} , boolean
             const booleanArgs = typeof __boolean === "string" ? [
                 __boolean
             ] : __boolean;
-            for (const key of booleanArgs.filter(Boolean)){
-                flags.bools[key] = true;
+            for (const key8 of booleanArgs.filter(Boolean)){
+                flags.bools[key8] = true;
             }
         }
     }
     const aliases = {};
     if (alias3 !== undefined) {
-        for(const key in alias3){
-            const val = getForce(alias3, key);
+        for(const key9 in alias3){
+            const val = getForce(alias3, key9);
             if (typeof val === "string") {
-                aliases[key] = [
+                aliases[key9] = [
                     val
                 ];
             } else {
-                aliases[key] = val;
+                aliases[key9] = val;
             }
-            for (const alias1 of getForce(aliases, key)){
+            for (const alias1 of getForce(aliases, key9)){
                 aliases[alias1] = [
-                    key
-                ].concat(aliases[key].filter((y)=>alias1 !== y));
+                    key9
+                ].concat(aliases[key9].filter((y)=>alias1 !== y));
             }
         }
     }
@@ -931,9 +931,9 @@ function parse1(args9, { "--": doubleDash = false , alias: alias3 = {} , boolean
         const stringArgs = typeof string === "string" ? [
             string
         ] : string;
-        for (const key of stringArgs.filter(Boolean)){
-            flags.strings[key] = true;
-            const alias = get(aliases, key);
+        for (const key10 of stringArgs.filter(Boolean)){
+            flags.strings[key10] = true;
+            const alias = get(aliases, key10);
             if (alias) {
                 for (const al of alias){
                     flags.strings[al] = true;
@@ -945,9 +945,9 @@ function parse1(args9, { "--": doubleDash = false , alias: alias3 = {} , boolean
         const collectArgs = typeof collect1 === "string" ? [
             collect1
         ] : collect1;
-        for (const key of collectArgs.filter(Boolean)){
-            flags.collect[key] = true;
-            const alias = get(aliases, key);
+        for (const key11 of collectArgs.filter(Boolean)){
+            flags.collect[key11] = true;
+            const alias = get(aliases, key11);
             if (alias) {
                 for (const al of alias){
                     flags.collect[al] = true;
@@ -958,17 +958,17 @@ function parse1(args9, { "--": doubleDash = false , alias: alias3 = {} , boolean
     const argv = {
         _: []
     };
-    function argDefined(key, arg) {
-        return flags.allBools && /^--[^=]+$/.test(arg) || get(flags.bools, key) || !!get(flags.strings, key) || !!get(aliases, key);
+    function argDefined(key12, arg) {
+        return flags.allBools && /^--[^=]+$/.test(arg) || get(flags.bools, key12) || !!get(flags.strings, key12) || !!get(aliases, key12);
     }
     function setKey(obj, name, value, collect = true) {
         let o = obj;
         const keys = name.split(".");
-        keys.slice(0, -1).forEach(function(key) {
-            if (get(o, key) === undefined) {
-                o[key] = {};
+        keys.slice(0, -1).forEach(function(key13) {
+            if (get(o, key13) === undefined) {
+                o[key13] = {};
             }
-            o = get(o, key);
+            o = get(o, key13);
         });
         const key5 = keys[keys.length - 1];
         const collectable = collect && !!get(flags.collect, name);
@@ -987,21 +987,21 @@ function parse1(args9, { "--": doubleDash = false , alias: alias3 = {} , boolean
             ];
         }
     }
-    function setArg(key, val, arg = undefined, collect) {
-        if (arg && flags.unknownFn && !argDefined(key, arg)) {
-            if (flags.unknownFn(arg, key, val) === false) return;
+    function setArg(key14, val, arg = undefined, collect) {
+        if (arg && flags.unknownFn && !argDefined(key14, arg)) {
+            if (flags.unknownFn(arg, key14, val) === false) return;
         }
-        const value = !get(flags.strings, key) && isNumber(val) ? Number(val) : val;
-        setKey(argv, key, value, collect);
-        const alias = get(aliases, key);
+        const value = !get(flags.strings, key14) && isNumber(val) ? Number(val) : val;
+        setKey(argv, key14, value, collect);
+        const alias = get(aliases, key14);
         if (alias) {
             for (const x of alias){
                 setKey(argv, x, value, collect);
             }
         }
     }
-    function aliasIsBoolean(key) {
-        return getForce(aliases, key).some((x)=>typeof get(flags.bools, x) === "boolean");
+    function aliasIsBoolean(key15) {
+        return getForce(aliases, key15).some((x)=>typeof get(flags.bools, x) === "boolean");
     }
     let notFlags = [];
     if (args9.includes("--")) {
@@ -1013,12 +1013,12 @@ function parse1(args9, { "--": doubleDash = false , alias: alias3 = {} , boolean
         if (/^--.+=/.test(arg)) {
             const m = arg.match(/^--([^=]+)=(.*)$/s);
             assert(m != null);
-            const [, key, value] = m;
-            if (flags.bools[key]) {
+            const [, key16, value] = m;
+            if (flags.bools[key16]) {
                 const booleanValue = value !== "false";
-                setArg(key, booleanValue, arg);
+                setArg(key16, booleanValue, arg);
             } else {
-                setArg(key, value, arg);
+                setArg(key16, value, arg);
             }
         } else if (/^--no-.+/.test(arg)) {
             const m = arg.match(/^--no-(.+)/);
@@ -1027,16 +1027,16 @@ function parse1(args9, { "--": doubleDash = false , alias: alias3 = {} , boolean
         } else if (/^--.+/.test(arg)) {
             const m = arg.match(/^--(.+)/);
             assert(m != null);
-            const [, key] = m;
+            const [, key17] = m;
             const next = args9[i + 1];
-            if (next !== undefined && !/^-/.test(next) && !get(flags.bools, key) && !flags.allBools && (get(aliases, key) ? !aliasIsBoolean(key) : true)) {
-                setArg(key, next, arg);
+            if (next !== undefined && !/^-/.test(next) && !get(flags.bools, key17) && !flags.allBools && (get(aliases, key17) ? !aliasIsBoolean(key17) : true)) {
+                setArg(key17, next, arg);
                 i++;
             } else if (/^(true|false)$/.test(next)) {
-                setArg(key, next === "true", arg);
+                setArg(key17, next === "true", arg);
                 i++;
             } else {
-                setArg(key, get(flags.strings, key) ? "" : true, arg);
+                setArg(key17, get(flags.strings, key17) ? "" : true, arg);
             }
         } else if (/^-[^-]+/.test(arg)) {
             const letters = arg.slice(1, -1).split("");
@@ -1065,16 +1065,16 @@ function parse1(args9, { "--": doubleDash = false , alias: alias3 = {} , boolean
                     setArg(letters[j], get(flags.strings, letters[j]) ? "" : true, arg);
                 }
             }
-            const [key] = arg.slice(-1);
-            if (!broken && key !== "-") {
-                if (args9[i + 1] && !/^(-|--)[^-]/.test(args9[i + 1]) && !get(flags.bools, key) && (get(aliases, key) ? !aliasIsBoolean(key) : true)) {
-                    setArg(key, args9[i + 1], arg);
+            const [key18] = arg.slice(-1);
+            if (!broken && key18 !== "-") {
+                if (args9[i + 1] && !/^(-|--)[^-]/.test(args9[i + 1]) && !get(flags.bools, key18) && (get(aliases, key18) ? !aliasIsBoolean(key18) : true)) {
+                    setArg(key18, args9[i + 1], arg);
                     i++;
                 } else if (args9[i + 1] && /^(true|false)$/.test(args9[i + 1])) {
-                    setArg(key, args9[i + 1] === "true", arg);
+                    setArg(key18, args9[i + 1] === "true", arg);
                     i++;
                 } else {
-                    setArg(key, get(flags.strings, key) ? "" : true, arg);
+                    setArg(key18, get(flags.strings, key18) ? "" : true, arg);
                 }
             }
         } else {
@@ -1110,12 +1110,12 @@ function parse1(args9, { "--": doubleDash = false , alias: alias3 = {} , boolean
     }
     if (doubleDash) {
         argv["--"] = [];
-        for (const key of notFlags){
-            argv["--"].push(key);
+        for (const key19 of notFlags){
+            argv["--"].push(key19);
         }
     } else {
-        for (const key of notFlags){
-            argv._.push(key);
+        for (const key20 of notFlags){
+            argv._.push(key20);
         }
     }
     return argv;
@@ -1123,8 +1123,8 @@ function parse1(args9, { "--": doubleDash = false , alias: alias3 = {} , boolean
 function exclude() {
     var excludes = [].slice.call(arguments);
     function excludeProps(res, obj) {
-        Object.keys(obj).forEach(function(key) {
-            if (!~excludes.indexOf(key)) res[key] = obj[key];
+        Object.keys(obj).forEach(function(key21) {
+            if (!~excludes.indexOf(key21)) res[key21] = obj[key21];
         });
     }
     return function extendExclude() {
@@ -1140,8 +1140,8 @@ function AssertionError(message, _props, ssf) {
     var extend = exclude("name", "message", "stack", "constructor", "toJSON"), props = extend(_props || {});
     this.message = message || "Unspecified AssertionError";
     this.showDiff = false;
-    for(var key in props){
-        this[key] = props[key];
+    for(var key22 in props){
+        this[key22] = props[key22];
     }
     ssf = ssf || AssertionError;
     if (Error.captureStackTrace) {
@@ -1416,12 +1416,12 @@ function FakeMap() {
     this._key = "chai/deep-eql__" + Math.random() + Date.now();
 }
 FakeMap.prototype = {
-    get: function getMap(key) {
-        return key[this._key];
+    get: function getMap(key23) {
+        return key23[this._key];
     },
-    set: function setMap(key, value) {
-        if (Object.isExtensible(key)) {
-            Object.defineProperty(key, this._key, {
+    set: function setMap(key24, value) {
+        if (Object.isExtensible(key24)) {
+            Object.defineProperty(key24, this._key, {
                 value,
                 configurable: true
             });
@@ -1566,15 +1566,15 @@ function entriesEqual(leftHandOperand, rightHandOperand, options) {
     }
     var leftHandItems = [];
     var rightHandItems = [];
-    leftHandOperand.forEach(function gatherEntries(key, value) {
+    leftHandOperand.forEach(function gatherEntries(key25, value) {
         leftHandItems.push([
-            key,
+            key25,
             value
         ]);
     });
-    rightHandOperand.forEach(function gatherEntries(key, value) {
+    rightHandOperand.forEach(function gatherEntries(key26, value) {
         rightHandItems.push([
-            key,
+            key26,
             value
         ]);
     });
@@ -1625,8 +1625,8 @@ function getGeneratorEntries(generator) {
 }
 function getEnumerableKeys(target) {
     var keys = [];
-    for(var key in target){
-        keys.push(key);
+    for(var key27 in target){
+        keys.push(key27);
     }
     return keys;
 }
@@ -1744,12 +1744,12 @@ function createCommonjsModule1(fn, basedir, module) {
 function commonjsRequire1() {
     throw new Error("Dynamic requires are not currently supported by @rollup/plugin-commonjs");
 }
-var flag = function flag2(obj, key, value) {
+var flag = function flag2(obj, key28, value) {
     var flags = obj.__flags || (obj.__flags = Object.create(null));
     if (arguments.length === 3) {
-        flags[key] = value;
+        flags[key28] = value;
     } else {
-        return flags[key];
+        return flags[key28];
     }
 };
 var test = function test2(obj, args11) {
@@ -1937,8 +1937,8 @@ var inspect_1 = createCommonjsModule1(function(module, exports) {
         } else if (typedArray) {
             return formatTypedArray(value);
         } else {
-            output = keys.map(function(key) {
-                return formatProperty(ctx, value, recurseTimes, visibleKeys, key, array);
+            output = keys.map(function(key29) {
+                return formatProperty(ctx, value, recurseTimes, visibleKeys, key29, array);
             });
         }
         ctx.seen.pop();
@@ -1979,9 +1979,9 @@ var inspect_1 = createCommonjsModule1(function(module, exports) {
                 output.push("");
             }
         }
-        keys.forEach(function(key) {
-            if (!key.match(/^\d+$/)) {
-                output.push(formatProperty(ctx, value, recurseTimes, visibleKeys, key, true));
+        keys.forEach(function(key30) {
+            if (!key30.match(/^\d+$/)) {
+                output.push(formatProperty(ctx, value, recurseTimes, visibleKeys, key30, true));
             }
         });
         return output;
@@ -2001,9 +2001,9 @@ var inspect_1 = createCommonjsModule1(function(module, exports) {
         }
         return str;
     }
-    function formatProperty(ctx, value, recurseTimes, visibleKeys, key, array) {
+    function formatProperty(ctx, value, recurseTimes, visibleKeys, key31, array) {
         var name;
-        var propDescriptor = Object.getOwnPropertyDescriptor(value, key);
+        var propDescriptor = Object.getOwnPropertyDescriptor(value, key31);
         var str;
         if (propDescriptor) {
             if (propDescriptor.get) {
@@ -2018,15 +2018,15 @@ var inspect_1 = createCommonjsModule1(function(module, exports) {
                 }
             }
         }
-        if (visibleKeys.indexOf(key) < 0) {
-            name = "[" + key + "]";
+        if (visibleKeys.indexOf(key31) < 0) {
+            name = "[" + key31 + "]";
         }
         if (!str) {
-            if (ctx.seen.indexOf(value[key]) < 0) {
+            if (ctx.seen.indexOf(value[key31]) < 0) {
                 if (recurseTimes === null) {
-                    str = formatValue(ctx, value[key], null);
+                    str = formatValue(ctx, value[key31], null);
                 } else {
-                    str = formatValue(ctx, value[key], recurseTimes - 1);
+                    str = formatValue(ctx, value[key31], recurseTimes - 1);
                 }
                 if (str.indexOf("\n") > -1) {
                     if (array) {
@@ -2044,10 +2044,10 @@ var inspect_1 = createCommonjsModule1(function(module, exports) {
             }
         }
         if (typeof name === "undefined") {
-            if (array && key.match(/^\d+$/)) {
+            if (array && key31.match(/^\d+$/)) {
                 return str;
             }
-            name = JSON.stringify("" + key);
+            name = JSON.stringify("" + key31);
             if (name.match(/^"([a-zA-Z_][a-zA-Z_0-9]*)"$/)) {
                 name = name.substr(1, name.length - 2);
                 name = ctx.stylize(name, "name");
@@ -3054,8 +3054,8 @@ var assertions = function(chai2, _) {
         if (objType === "Map" || objType === "Set") {
             deepStr = isDeep ? "deeply " : "";
             actual = [];
-            obj.forEach(function(val, key) {
-                actual.push(key);
+            obj.forEach(function(val, key32) {
+                actual.push(key32);
             });
             if (keysType !== "Array") {
                 keys = Array.prototype.slice.call(arguments);
@@ -3114,8 +3114,8 @@ var assertions = function(chai2, _) {
             }
         }
         if (len > 1) {
-            keys = keys.map(function(key) {
-                return _.inspect(key);
+            keys = keys.map(function(key33) {
+                return _.inspect(key33);
             });
             var last = keys.pop();
             if (all) {
@@ -6765,8 +6765,8 @@ function getCookies(headers) {
         for (const kv of c){
             const [cookieKey, ...cookieVal] = kv.split("=");
             assert4(cookieKey != null);
-            const key = cookieKey.trim();
-            out[key] = cookieVal.join("=");
+            const key34 = cookieKey.trim();
+            out[key34] = cookieVal.join("=");
         }
         return out;
     }
@@ -7412,7 +7412,7 @@ async function setProjectHost() {
     let envHostName, envHostRoot, envHostAuth, envServerConfig;
     if (Deno.env.get('USE_LOCAL_CONFIG') === 'true') {
         envHostName = 'FileSystem';
-        envHostRoot = `${Deno.cwd().replaceAll('\\', '/')}/${Deno.env.get('LOCAL_ROOT')}`;
+        envHostRoot = `${Deno.cwd().replaceAll('\\', '/')}/${Deno.env.get('LOCAL_ROOT')}`.replaceAll('//', '/');
         envHostAuth = '';
         envServerConfig = Deno.env.get('LOCAL_CONFIG');
         if (!envServerConfig || !envHostRoot) {
@@ -7548,14 +7548,14 @@ async function getRequestContext(request, routeParams) {
     requestContext.headers = request.headers;
     requestContext.cookies = mod4.getCookies(request.headers);
     requestContext.params = routeParams;
-    url.searchParams.forEach((value, key)=>{
-        requestContext.params[key] = value;
+    url.searchParams.forEach((value, key35)=>{
+        requestContext.params[key35] = value;
     });
     if (contentType?.startsWith('application/json')) {
         requestContext.data = await request.json();
     } else if (contentType?.startsWith('multipart/form-data') || contentType?.startsWith('application/x-www-form-urlencoded')) {
         const formData = await request.formData();
-        for await (const [key, value] of formData){
+        for await (const [key36, value] of formData){
             if (value instanceof File) {
                 requestContext.files.push({
                     content: await value.arrayBuffer(),
@@ -7564,7 +7564,7 @@ async function getRequestContext(request, routeParams) {
                     type: value.type
                 });
             } else {
-                requestContext.data[key] = value;
+                requestContext.data[key36] = value;
             }
         }
     } else {
@@ -7611,10 +7611,12 @@ class ResponseObject {
 const cmdArgs = parse1(Deno.args);
 const projectName = cmdArgs._[0].toString();
 const path4 = `${Deno.cwd()}/${projectName ? projectName + '/' : ''}.env`;
-await config({
-    path: path4,
-    export: true
+const env = await config({
+    path: path4
 });
+for(let key in env){
+    if (!Deno.env.get(key)) Deno.env.set(key, env[key]);
+}
 await mod5.init();
 const serverPort = parseInt(Deno.env.get('SERVER_HTTP_PORT') || '80');
 const httpServer = new Server({
