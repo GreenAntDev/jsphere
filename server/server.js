@@ -2,6 +2,107 @@
 // deno-lint-ignore-file
 // This code was bundled using `deno bundle` and it's not recommended to edit it manually
 
+function removeEmptyValues(obj) {
+    return Object.fromEntries(Object.entries(obj).filter(([, value])=>{
+        if (value === null) return false;
+        if (value === undefined) return false;
+        if (value === "") return false;
+        return true;
+    }));
+}
+function difference(arrA, arrB) {
+    return arrA.filter((a)=>arrB.indexOf(a) < 0);
+}
+function parse(rawDotenv) {
+    const env = {};
+    for (const line of rawDotenv.split("\n")){
+        if (!isVariableStart(line)) continue;
+        const key = line.slice(0, line.indexOf("=")).trim();
+        let value = line.slice(line.indexOf("=") + 1).trim();
+        if (hasSingleQuotes(value)) {
+            value = value.slice(1, -1);
+        } else if (hasDoubleQuotes(value)) {
+            value = value.slice(1, -1);
+            value = expandNewlines(value);
+        } else value = value.trim();
+        env[key] = value;
+    }
+    return env;
+}
+const defaultConfigOptions = {
+    path: `.env`,
+    export: false,
+    safe: false,
+    example: `.env.example`,
+    allowEmptyValues: false,
+    defaults: `.env.defaults`
+};
+async function config(options = {}) {
+    const o = {
+        ...defaultConfigOptions,
+        ...options
+    };
+    const conf = await parseFileAsync(o.path);
+    if (o.defaults) {
+        const confDefaults = await parseFileAsync(o.defaults);
+        for(const key in confDefaults){
+            if (!(key in conf)) {
+                conf[key] = confDefaults[key];
+            }
+        }
+    }
+    if (o.safe) {
+        const confExample = await parseFileAsync(o.example);
+        assertSafe(conf, confExample, o.allowEmptyValues);
+    }
+    if (o.export) {
+        for(const key in conf){
+            if (Deno.env.get(key) !== undefined) continue;
+            Deno.env.set(key, conf[key]);
+        }
+    }
+    return conf;
+}
+async function parseFileAsync(filepath) {
+    try {
+        return parse(new TextDecoder("utf-8").decode(await Deno.readFile(filepath)));
+    } catch (e) {
+        if (e instanceof Deno.errors.NotFound) return {};
+        throw e;
+    }
+}
+function isVariableStart(str) {
+    return /^\s*[a-zA-Z_][a-zA-Z_0-9 ]*\s*=/.test(str);
+}
+function hasSingleQuotes(str) {
+    return /^'([\s\S]*)'$/.test(str);
+}
+function hasDoubleQuotes(str) {
+    return /^"([\s\S]*)"$/.test(str);
+}
+function expandNewlines(str) {
+    return str.replaceAll("\\n", "\n");
+}
+function assertSafe(conf, confExample, allowEmptyValues) {
+    const currentEnv = Deno.env.toObject();
+    const confWithEnv = Object.assign({}, currentEnv, conf);
+    const missing = difference(Object.keys(confExample), Object.keys(allowEmptyValues ? confWithEnv : removeEmptyValues(confWithEnv)));
+    if (missing.length > 0) {
+        const errorMessages = [
+            `The following variables were defined in the example file but are not present in the environment:\n  ${missing.join(", ")}`,
+            `Make sure to add them to your env file.`,
+            !allowEmptyValues && `If you expect any of these variables to be empty, you can set the allowEmptyValues option to true.`, 
+        ];
+        throw new MissingEnvVarsError(errorMessages.filter(Boolean).join("\n\n"));
+    }
+}
+class MissingEnvVarsError extends Error {
+    constructor(message){
+        super(message);
+        this.name = "MissingEnvVarsError";
+        Object.setPrototypeOf(this, new.target.prototype);
+    }
+}
 var LogLevels;
 (function(LogLevels1) {
     LogLevels1[LogLevels1["NOTSET"] = 0] = "NOTSET";
@@ -101,7 +202,7 @@ class Logger {
     get handlers() {
         return this.#handlers;
     }
-    _log(level, msg, ...args) {
+     #_log(level, msg, ...args) {
         if (this.level > level) {
             return msg instanceof Function ? undefined : msg;
         }
@@ -136,20 +237,20 @@ class Logger {
         }
         return "undefined";
     }
-    debug(msg, ...args) {
-        return this._log(LogLevels.DEBUG, msg, ...args);
+    debug(msg1, ...args1) {
+        return this.#_log(LogLevels.DEBUG, msg1, ...args1);
     }
-    info(msg, ...args) {
-        return this._log(LogLevels.INFO, msg, ...args);
+    info(msg2, ...args2) {
+        return this.#_log(LogLevels.INFO, msg2, ...args2);
     }
-    warning(msg, ...args) {
-        return this._log(LogLevels.WARNING, msg, ...args);
+    warning(msg3, ...args3) {
+        return this.#_log(LogLevels.WARNING, msg3, ...args3);
     }
-    error(msg, ...args) {
-        return this._log(LogLevels.ERROR, msg, ...args);
+    error(msg4, ...args4) {
+        return this.#_log(LogLevels.ERROR, msg4, ...args4);
     }
-    critical(msg, ...args) {
-        return this._log(LogLevels.CRITICAL, msg, ...args);
+    critical(msg5, ...args5) {
+        return this.#_log(LogLevels.CRITICAL, msg5, ...args5);
     }
 }
 const { Deno: Deno1  } = globalThis;
@@ -195,9 +296,9 @@ class DenoStdInternalError extends Error {
         this.name = "DenoStdInternalError";
     }
 }
-function assert(expr, msg = "") {
+function assert(expr, msg6 = "") {
     if (!expr) {
-        throw new DenoStdInternalError(msg);
+        throw new DenoStdInternalError(msg6);
     }
 }
 function copy(src, dst, off = 0) {
@@ -626,8 +727,8 @@ class BaseHandler {
     }
     handle(logRecord) {
         if (this.level > logRecord.level) return;
-        const msg = this.format(logRecord);
-        return this.log(msg);
+        const msg7 = this.format(logRecord);
+        return this.log(msg7);
     }
     format(logRecord) {
         if (this.formatter instanceof Function) {
@@ -647,27 +748,27 @@ class BaseHandler {
 }
 class ConsoleHandler extends BaseHandler {
     format(logRecord) {
-        let msg = super.format(logRecord);
+        let msg8 = super.format(logRecord);
         switch(logRecord.level){
             case LogLevels.INFO:
-                msg = blue(msg);
+                msg8 = blue(msg8);
                 break;
             case LogLevels.WARNING:
-                msg = yellow(msg);
+                msg8 = yellow(msg8);
                 break;
             case LogLevels.ERROR:
-                msg = red(msg);
+                msg8 = red(msg8);
                 break;
             case LogLevels.CRITICAL:
-                msg = bold(red(msg));
+                msg8 = bold(red(msg8));
                 break;
             default:
                 break;
         }
-        return msg;
+        return msg8;
     }
-    log(msg) {
-        console.log(msg);
+    log(msg9) {
+        console.log(msg9);
     }
 }
 const DEFAULT_LEVEL = "INFO";
@@ -705,17 +806,23 @@ function getLogger(name) {
     }
     return result;
 }
-function info(msg, ...args) {
-    if (msg instanceof Function) {
-        return getLogger("default").info(msg, ...args);
+function info(msg10, ...args6) {
+    if (msg10 instanceof Function) {
+        return getLogger("default").info(msg10, ...args6);
     }
-    return getLogger("default").info(msg, ...args);
+    return getLogger("default").info(msg10, ...args6);
 }
-function warning(msg, ...args) {
-    if (msg instanceof Function) {
-        return getLogger("default").warning(msg, ...args);
+function warning(msg11, ...args7) {
+    if (msg11 instanceof Function) {
+        return getLogger("default").warning(msg11, ...args7);
     }
-    return getLogger("default").warning(msg, ...args);
+    return getLogger("default").warning(msg11, ...args7);
+}
+function error(msg12, ...args8) {
+    if (msg12 instanceof Function) {
+        return getLogger("default").error(msg12, ...args8);
+    }
+    return getLogger("default").error(msg12, ...args8);
 }
 async function setup(config2) {
     state.config = {
@@ -758,106 +865,261 @@ async function setup(config2) {
     }
 }
 await setup(DEFAULT_CONFIG);
-function removeEmptyValues(obj) {
-    return Object.fromEntries(Object.entries(obj).filter(([, value])=>{
-        if (value === null) return false;
-        if (value === undefined) return false;
-        if (value === "") return false;
-        return true;
-    }));
-}
-function difference(arrA, arrB) {
-    return arrA.filter((a)=>arrB.indexOf(a) < 0);
-}
-function parse(rawDotenv) {
-    const env = {};
-    for (const line of rawDotenv.split("\n")){
-        if (!isVariableStart(line)) continue;
-        const key = line.slice(0, line.indexOf("=")).trim();
-        let value = line.slice(line.indexOf("=") + 1).trim();
-        if (hasSingleQuotes(value)) {
-            value = value.slice(1, -1);
-        } else if (hasDoubleQuotes(value)) {
-            value = value.slice(1, -1);
-            value = expandNewlines(value);
-        } else value = value.trim();
-        env[key] = value;
+const { hasOwn  } = Object;
+function get(obj, key) {
+    if (hasOwn(obj, key)) {
+        return obj[key];
     }
-    return env;
 }
-function config(options = {}) {
-    const o = Object.assign({
-        path: `.env`,
-        export: false,
-        safe: false,
-        example: `.env.example`,
-        allowEmptyValues: false,
-        defaults: `.env.defaults`
-    }, options);
-    const conf = parseFile(o.path);
-    if (o.safe) {
-        const confExample = parseFile(o.example);
-        assertSafe(conf, confExample, o.allowEmptyValues);
-    }
-    if (o.defaults) {
-        const confDefaults = parseFile(o.defaults);
-        for(const key in confDefaults){
-            if (!(key in conf)) {
-                conf[key] = confDefaults[key];
+function getForce(obj, key) {
+    const v = get(obj, key);
+    assert(v != null);
+    return v;
+}
+function isNumber(x) {
+    if (typeof x === "number") return true;
+    if (/^0x[0-9a-f]+$/i.test(String(x))) return true;
+    return /^[-+]?(?:\d+(?:\.\d*)?|\.\d+)(e[-+]?\d+)?$/.test(String(x));
+}
+function hasKey(obj, keys) {
+    let o = obj;
+    keys.slice(0, -1).forEach((key)=>{
+        o = get(o, key) ?? {};
+    });
+    const key1 = keys[keys.length - 1];
+    return key1 in o;
+}
+function parse1(args9, { "--": doubleDash = false , alias: alias3 = {} , boolean: __boolean = false , default: defaults = {} , stopEarly =false , string =[] , collect: collect1 = [] , unknown =(i)=>i  } = {}) {
+    const flags = {
+        bools: {},
+        strings: {},
+        unknownFn: unknown,
+        allBools: false,
+        collect: {}
+    };
+    if (__boolean !== undefined) {
+        if (typeof __boolean === "boolean") {
+            flags.allBools = !!__boolean;
+        } else {
+            const booleanArgs = typeof __boolean === "string" ? [
+                __boolean
+            ] : __boolean;
+            for (const key of booleanArgs.filter(Boolean)){
+                flags.bools[key] = true;
             }
         }
     }
-    if (o.export) {
-        for(const key in conf){
-            if (Deno.env.get(key) !== undefined) continue;
-            Deno.env.set(key, conf[key]);
+    const aliases = {};
+    if (alias3 !== undefined) {
+        for(const key in alias3){
+            const val = getForce(alias3, key);
+            if (typeof val === "string") {
+                aliases[key] = [
+                    val
+                ];
+            } else {
+                aliases[key] = val;
+            }
+            for (const alias1 of getForce(aliases, key)){
+                aliases[alias1] = [
+                    key
+                ].concat(aliases[key].filter((y)=>alias1 !== y));
+            }
         }
     }
-    return conf;
-}
-function parseFile(filepath) {
-    try {
-        return parse(new TextDecoder("utf-8").decode(Deno.readFileSync(filepath)));
-    } catch (e) {
-        if (e instanceof Deno.errors.NotFound) return {};
-        throw e;
+    if (string !== undefined) {
+        const stringArgs = typeof string === "string" ? [
+            string
+        ] : string;
+        for (const key of stringArgs.filter(Boolean)){
+            flags.strings[key] = true;
+            const alias = get(aliases, key);
+            if (alias) {
+                for (const al of alias){
+                    flags.strings[al] = true;
+                }
+            }
+        }
     }
-}
-function isVariableStart(str) {
-    return /^\s*[a-zA-Z_][a-zA-Z_0-9 ]*\s*=/.test(str);
-}
-function hasSingleQuotes(str) {
-    return /^'([\s\S]*)'$/.test(str);
-}
-function hasDoubleQuotes(str) {
-    return /^"([\s\S]*)"$/.test(str);
-}
-function expandNewlines(str) {
-    return str.replaceAll("\\n", "\n");
-}
-function assertSafe(conf, confExample, allowEmptyValues) {
-    const currentEnv = Deno.env.toObject();
-    const confWithEnv = Object.assign({}, currentEnv, conf);
-    const missing = difference(Object.keys(confExample), Object.keys(allowEmptyValues ? confWithEnv : removeEmptyValues(confWithEnv)));
-    if (missing.length > 0) {
-        const errorMessages = [
-            `The following variables were defined in the example file but are not present in the environment:\n  ${missing.join(", ")}`,
-            `Make sure to add them to your env file.`,
-            !allowEmptyValues && `If you expect any of these variables to be empty, you can set the allowEmptyValues option to true.`, 
-        ];
-        throw new MissingEnvVarsError(errorMessages.filter(Boolean).join("\n\n"));
+    if (collect1 !== undefined) {
+        const collectArgs = typeof collect1 === "string" ? [
+            collect1
+        ] : collect1;
+        for (const key of collectArgs.filter(Boolean)){
+            flags.collect[key] = true;
+            const alias = get(aliases, key);
+            if (alias) {
+                for (const al of alias){
+                    flags.collect[al] = true;
+                }
+            }
+        }
     }
-}
-class MissingEnvVarsError extends Error {
-    constructor(message){
-        super(message);
-        this.name = "MissingEnvVarsError";
-        Object.setPrototypeOf(this, new.target.prototype);
+    const argv = {
+        _: []
+    };
+    function argDefined(key, arg) {
+        return flags.allBools && /^--[^=]+$/.test(arg) || get(flags.bools, key) || !!get(flags.strings, key) || !!get(aliases, key);
     }
+    function setKey(obj, name, value, collect = true) {
+        let o = obj;
+        const keys = name.split(".");
+        keys.slice(0, -1).forEach(function(key) {
+            if (get(o, key) === undefined) {
+                o[key] = {};
+            }
+            o = get(o, key);
+        });
+        const key5 = keys[keys.length - 1];
+        const collectable = collect && !!get(flags.collect, name);
+        if (!collectable) {
+            o[key5] = value;
+        } else if (get(o, key5) === undefined) {
+            o[key5] = [
+                value
+            ];
+        } else if (Array.isArray(get(o, key5))) {
+            o[key5].push(value);
+        } else {
+            o[key5] = [
+                get(o, key5),
+                value
+            ];
+        }
+    }
+    function setArg(key, val, arg = undefined, collect) {
+        if (arg && flags.unknownFn && !argDefined(key, arg)) {
+            if (flags.unknownFn(arg, key, val) === false) return;
+        }
+        const value = !get(flags.strings, key) && isNumber(val) ? Number(val) : val;
+        setKey(argv, key, value, collect);
+        const alias = get(aliases, key);
+        if (alias) {
+            for (const x of alias){
+                setKey(argv, x, value, collect);
+            }
+        }
+    }
+    function aliasIsBoolean(key) {
+        return getForce(aliases, key).some((x)=>typeof get(flags.bools, x) === "boolean");
+    }
+    let notFlags = [];
+    if (args9.includes("--")) {
+        notFlags = args9.slice(args9.indexOf("--") + 1);
+        args9 = args9.slice(0, args9.indexOf("--"));
+    }
+    for(let i = 0; i < args9.length; i++){
+        const arg = args9[i];
+        if (/^--.+=/.test(arg)) {
+            const m = arg.match(/^--([^=]+)=(.*)$/s);
+            assert(m != null);
+            const [, key, value] = m;
+            if (flags.bools[key]) {
+                const booleanValue = value !== "false";
+                setArg(key, booleanValue, arg);
+            } else {
+                setArg(key, value, arg);
+            }
+        } else if (/^--no-.+/.test(arg)) {
+            const m = arg.match(/^--no-(.+)/);
+            assert(m != null);
+            setArg(m[1], false, arg, false);
+        } else if (/^--.+/.test(arg)) {
+            const m = arg.match(/^--(.+)/);
+            assert(m != null);
+            const [, key] = m;
+            const next = args9[i + 1];
+            if (next !== undefined && !/^-/.test(next) && !get(flags.bools, key) && !flags.allBools && (get(aliases, key) ? !aliasIsBoolean(key) : true)) {
+                setArg(key, next, arg);
+                i++;
+            } else if (/^(true|false)$/.test(next)) {
+                setArg(key, next === "true", arg);
+                i++;
+            } else {
+                setArg(key, get(flags.strings, key) ? "" : true, arg);
+            }
+        } else if (/^-[^-]+/.test(arg)) {
+            const letters = arg.slice(1, -1).split("");
+            let broken = false;
+            for(let j = 0; j < letters.length; j++){
+                const next = arg.slice(j + 2);
+                if (next === "-") {
+                    setArg(letters[j], next, arg);
+                    continue;
+                }
+                if (/[A-Za-z]/.test(letters[j]) && /=/.test(next)) {
+                    setArg(letters[j], next.split(/=(.+)/)[1], arg);
+                    broken = true;
+                    break;
+                }
+                if (/[A-Za-z]/.test(letters[j]) && /-?\d+(\.\d*)?(e-?\d+)?$/.test(next)) {
+                    setArg(letters[j], next, arg);
+                    broken = true;
+                    break;
+                }
+                if (letters[j + 1] && letters[j + 1].match(/\W/)) {
+                    setArg(letters[j], arg.slice(j + 2), arg);
+                    broken = true;
+                    break;
+                } else {
+                    setArg(letters[j], get(flags.strings, letters[j]) ? "" : true, arg);
+                }
+            }
+            const [key] = arg.slice(-1);
+            if (!broken && key !== "-") {
+                if (args9[i + 1] && !/^(-|--)[^-]/.test(args9[i + 1]) && !get(flags.bools, key) && (get(aliases, key) ? !aliasIsBoolean(key) : true)) {
+                    setArg(key, args9[i + 1], arg);
+                    i++;
+                } else if (args9[i + 1] && /^(true|false)$/.test(args9[i + 1])) {
+                    setArg(key, args9[i + 1] === "true", arg);
+                    i++;
+                } else {
+                    setArg(key, get(flags.strings, key) ? "" : true, arg);
+                }
+            }
+        } else {
+            if (!flags.unknownFn || flags.unknownFn(arg) !== false) {
+                argv._.push(flags.strings["_"] ?? !isNumber(arg) ? arg : Number(arg));
+            }
+            if (stopEarly) {
+                argv._.push(...args9.slice(i + 1));
+                break;
+            }
+        }
+    }
+    for (const [key4, value1] of Object.entries(defaults)){
+        if (!hasKey(argv, key4.split("."))) {
+            setKey(argv, key4, value1);
+            if (aliases[key4]) {
+                for (const x of aliases[key4]){
+                    setKey(argv, x, value1);
+                }
+            }
+        }
+    }
+    for (const key2 of Object.keys(flags.bools)){
+        if (!hasKey(argv, key2.split("."))) {
+            const value = get(flags.collect, key2) ? [] : false;
+            setKey(argv, key2, value, false);
+        }
+    }
+    for (const key3 of Object.keys(flags.strings)){
+        if (!hasKey(argv, key3.split(".")) && get(flags.collect, key3)) {
+            setKey(argv, key3, [], false);
+        }
+    }
+    if (doubleDash) {
+        argv["--"] = [];
+        for (const key of notFlags){
+            argv["--"].push(key);
+        }
+    } else {
+        for (const key of notFlags){
+            argv._.push(key);
+        }
+    }
+    return argv;
 }
-config({
-    export: true
-});
 function exclude() {
     var excludes = [].slice.call(arguments);
     function excludeProps(res, obj) {
@@ -866,9 +1128,9 @@ function exclude() {
         });
     }
     return function extendExclude() {
-        var args = [].slice.call(arguments), i = 0, res = {};
-        for(; i < args.length; i++){
-            excludeProps(res, args[i]);
+        var args10 = [].slice.call(arguments), i = 0, res = {};
+        for(; i < args10.length; i++){
+            excludeProps(res, args10[i]);
         }
         return res;
     };
@@ -910,8 +1172,8 @@ function hasProperty(obj, name) {
     }
     return name in Object(obj);
 }
-function parsePath(path4) {
-    var str = path4.replace(/([^\\])\[/g, "$1.[");
+function parsePath(path5) {
+    var str = path5.replace(/([^\\])\[/g, "$1.[");
     var parts = str.match(/(\\\.|[^.]+?)+/g);
     return parts.map(function mapMatches(value) {
         if (value === "constructor" || value === "__proto__" || value === "prototype") {
@@ -975,8 +1237,8 @@ function internalSetPathValue(obj, val, parsed) {
         }
     }
 }
-function getPathInfo(obj, path5) {
-    var parsed = parsePath(path5);
+function getPathInfo(obj, path6) {
+    var parsed = parsePath(path6);
     var last = parsed[parsed.length - 1];
     var info1 = {
         parent: parsed.length > 1 ? internalGetPathValue(obj, parsed, parsed.length - 1) : obj,
@@ -986,12 +1248,12 @@ function getPathInfo(obj, path5) {
     info1.exists = hasProperty(info1.parent, info1.name);
     return info1;
 }
-function getPathValue(obj, path6) {
-    var info2 = getPathInfo(obj, path6);
+function getPathValue(obj, path7) {
+    var info2 = getPathInfo(obj, path7);
     return info2.value;
 }
-function setPathValue(obj, path7, val) {
-    var parsed = parsePath(path7);
+function setPathValue(obj, path8, val) {
+    var parsed = parsePath(path8);
     internalSetPathValue(obj, val, parsed);
     return obj;
 }
@@ -1010,8 +1272,8 @@ function createCommonjsModule(fn, basedir, module) {
     return module = {
         path: basedir,
         exports: {},
-        require: function(path8, base) {
-            return commonjsRequire(path8, base === void 0 || base === null ? module.path : base);
+        require: function(path9, base) {
+            return commonjsRequire(path9, base === void 0 || base === null ? module.path : base);
         }
     }, fn(module, module.exports), module.exports;
 }
@@ -1450,13 +1712,13 @@ function getConstructorName(errorLike) {
     return constructorName;
 }
 function getMessage(errorLike) {
-    var msg = "";
+    var msg13 = "";
     if (errorLike && errorLike.message) {
-        msg = errorLike.message;
+        msg13 = errorLike.message;
     } else if (typeof errorLike === "string") {
-        msg = errorLike;
+        msg13 = errorLike;
     }
-    return msg;
+    return msg13;
 }
 var checkError = {
     compatibleInstance,
@@ -1474,8 +1736,8 @@ function createCommonjsModule1(fn, basedir, module) {
     return module = {
         path: basedir,
         exports: {},
-        require: function(path9, base) {
-            return commonjsRequire1(path9, base === void 0 || base === null ? module.path : base);
+        require: function(path10, base) {
+            return commonjsRequire1(path10, base === void 0 || base === null ? module.path : base);
         }
     }, fn(module, module.exports), module.exports;
 }
@@ -1490,8 +1752,8 @@ var flag = function flag2(obj, key, value) {
         return flags[key];
     }
 };
-var test = function test2(obj, args) {
-    var negate = flag(obj, "negate"), expr = args[0];
+var test = function test2(obj, args11) {
+    var negate = flag(obj, "negate"), expr = args11[0];
     return negate ? !expr : expr;
 };
 var expectTypes = function expectTypes2(obj, types1) {
@@ -1521,8 +1783,8 @@ var expectTypes = function expectTypes2(obj, types1) {
         throw new assertionError(flagMsg + "object tested must be " + str + ", but " + objType + " given", void 0, ssfi);
     }
 };
-var getActual = function getActual2(obj, args) {
-    return args.length > 4 ? args[4] : obj._obj;
+var getActual = function getActual2(obj, args12) {
+    return args12.length > 4 ? args12[4] : obj._obj;
 };
 var getProperties = function getProperties2(object) {
     var result = Object.getOwnPropertyNames(object);
@@ -1841,18 +2103,18 @@ var objDisplay = function objDisplay2(obj) {
         return str;
     }
 };
-var getMessage1 = function getMessage2(obj, args) {
-    var negate = flag(obj, "negate"), val = flag(obj, "object"), expected = args[3], actual = getActual(obj, args), msg = negate ? args[2] : args[1], flagMsg = flag(obj, "message");
-    if (typeof msg === "function") msg = msg();
-    msg = msg || "";
-    msg = msg.replace(/#\{this\}/g, function() {
+var getMessage1 = function getMessage2(obj, args13) {
+    var negate = flag(obj, "negate"), val = flag(obj, "object"), expected = args13[3], actual = getActual(obj, args13), msg14 = negate ? args13[2] : args13[1], flagMsg = flag(obj, "message");
+    if (typeof msg14 === "function") msg14 = msg14();
+    msg14 = msg14 || "";
+    msg14 = msg14.replace(/#\{this\}/g, function() {
         return objDisplay(val);
     }).replace(/#\{act\}/g, function() {
         return objDisplay(actual);
     }).replace(/#\{exp\}/g, function() {
         return objDisplay(expected);
     });
-    return flagMsg ? flagMsg + ": " + msg : msg;
+    return flagMsg ? flagMsg + ": " + msg14 : msg14;
 };
 var transferFlags = function transferFlags2(assertion2, object, includeAll) {
     var flags = assertion2.__flags || (assertion2.__flags = Object.create(null));
@@ -2124,24 +2386,24 @@ function isObjectType(obj) {
     ];
     return objectTypes.indexOf(objectType) !== -1;
 }
-var getOperator = function getOperator2(obj, args) {
+var getOperator = function getOperator2(obj, args14) {
     var operator = flag(obj, "operator");
     var negate = flag(obj, "negate");
-    var expected = args[3];
-    var msg = negate ? args[2] : args[1];
+    var expected = args14[3];
+    var msg15 = negate ? args14[2] : args14[1];
     if (operator) {
         return operator;
     }
-    if (typeof msg === "function") msg = msg();
-    msg = msg || "";
-    if (!msg) {
+    if (typeof msg15 === "function") msg15 = msg15();
+    msg15 = msg15 || "";
+    if (!msg15) {
         return void 0;
     }
-    if (/\shave\s/.test(msg)) {
+    if (/\shave\s/.test(msg15)) {
         return void 0;
     }
     var isObject = isObjectType(expected);
-    if (/\snot\s/.test(msg)) {
+    if (/\snot\s/.test(msg15)) {
         return isObject ? "notDeepStrictEqual" : "notStrictEqual";
     }
     return isObject ? "deepStrictEqual" : "strictEqual";
@@ -2207,11 +2469,11 @@ var utils = {
 var assertion = function(_chai, util2) {
     var AssertionError2 = _chai.AssertionError, flag3 = util2.flag;
     _chai.Assertion = Assertion2;
-    function Assertion2(obj, msg, ssfi, lockSsfi) {
+    function Assertion2(obj, msg16, ssfi, lockSsfi) {
         flag3(this, "ssfi", ssfi || Assertion2);
         flag3(this, "lockSsfi", lockSsfi);
         flag3(this, "object", obj);
-        flag3(this, "message", msg);
+        flag3(this, "message", msg16);
         return util2.proxify(this);
     }
     Object.defineProperty(Assertion2, "includeStack", {
@@ -2252,13 +2514,13 @@ var assertion = function(_chai, util2) {
     Assertion2.overwriteChainableMethod = function(name, fn, chainingBehavior) {
         util2.overwriteChainableMethod(this.prototype, name, fn, chainingBehavior);
     };
-    Assertion2.prototype.assert = function(expr, msg, negateMsg, expected, _actual, showDiff) {
+    Assertion2.prototype.assert = function(expr, msg17, negateMsg, expected, _actual, showDiff) {
         var ok = util2.test(this, arguments);
         if (showDiff !== false) showDiff = true;
         if (expected === void 0 && _actual === void 0) showDiff = false;
         if (config1.showDiff !== true) showDiff = false;
         if (!ok) {
-            msg = util2.getMessage(this, arguments);
+            msg17 = util2.getMessage(this, arguments);
             var actual = util2.getActual(this, arguments);
             var assertionErrorObjectProperties = {
                 actual,
@@ -2269,7 +2531,7 @@ var assertion = function(_chai, util2) {
             if (operator) {
                 assertionErrorObjectProperties.operator = operator;
             }
-            throw new AssertionError2(msg, assertionErrorObjectProperties, config1.includeStack ? this.assert : flag3(this, "ssfi"));
+            throw new AssertionError2(msg17, assertionErrorObjectProperties, config1.includeStack ? this.assert : flag3(this, "ssfi"));
         }
     };
     Object.defineProperty(Assertion2.prototype, "_obj", {
@@ -2327,8 +2589,8 @@ var assertions = function(chai2, _) {
         flag3(this, "all", true);
         flag3(this, "any", false);
     });
-    function an(type2, msg) {
-        if (msg) flag3(this, "message", msg);
+    function an(type2, msg18) {
+        if (msg18) flag3(this, "message", msg18);
         type2 = type2.toLowerCase();
         var obj = flag3(this, "object"), article = ~[
             "a",
@@ -2347,8 +2609,8 @@ var assertions = function(chai2, _) {
     function includeChainingBehavior() {
         flag3(this, "contains", true);
     }
-    function include(val, msg) {
-        if (msg) flag3(this, "message", msg);
+    function include(val, msg19) {
+        if (msg19) flag3(this, "message", msg19);
         var obj = flag3(this, "object"), objType = _.type(obj).toLowerCase(), flagMsg = flag3(this, "message"), negate = flag3(this, "negate"), ssfi = flag3(this, "ssfi"), isDeep = flag3(this, "deep"), descriptor = isDeep ? "deep " : "";
         flagMsg = flagMsg ? flagMsg + ": " : "";
         var included = false;
@@ -2460,8 +2722,8 @@ var assertions = function(chai2, _) {
             case "weakset":
                 throw new AssertionError2(flagMsg + ".empty was passed a weak collection", void 0, ssfi);
             case "function":
-                var msg = flagMsg + ".empty was passed a function " + _.getName(val);
-                throw new AssertionError2(msg.trim(), void 0, ssfi);
+                var msg20 = flagMsg + ".empty was passed a function " + _.getName(val);
+                throw new AssertionError2(msg20.trim(), void 0, ssfi);
             default:
                 if (val !== Object(val)) {
                     throw new AssertionError2(flagMsg + ".empty was passed non-string primitive " + _.inspect(val), void 0, ssfi);
@@ -2476,8 +2738,8 @@ var assertions = function(chai2, _) {
     }
     Assertion2.addProperty("arguments", checkArguments);
     Assertion2.addProperty("Arguments", checkArguments);
-    function assertEqual(val, msg) {
-        if (msg) flag3(this, "message", msg);
+    function assertEqual(val, msg21) {
+        if (msg21) flag3(this, "message", msg21);
         var obj = flag3(this, "object");
         if (flag3(this, "deep")) {
             var prevLockSsfi = flag3(this, "lockSsfi");
@@ -2491,14 +2753,14 @@ var assertions = function(chai2, _) {
     Assertion2.addMethod("equal", assertEqual);
     Assertion2.addMethod("equals", assertEqual);
     Assertion2.addMethod("eq", assertEqual);
-    function assertEql(obj, msg) {
-        if (msg) flag3(this, "message", msg);
+    function assertEql(obj, msg22) {
+        if (msg22) flag3(this, "message", msg22);
         this.assert(_.eql(obj, flag3(this, "object")), "expected #{this} to deeply equal #{exp}", "expected #{this} to not deeply equal #{exp}", obj, this._obj, true);
     }
     Assertion2.addMethod("eql", assertEql);
     Assertion2.addMethod("eqls", assertEql);
-    function assertAbove(n, msg) {
-        if (msg) flag3(this, "message", msg);
+    function assertAbove(n, msg23) {
+        if (msg23) flag3(this, "message", msg23);
         var obj = flag3(this, "object"), doLength = flag3(this, "doLength"), flagMsg = flag3(this, "message"), msgPrefix = flagMsg ? flagMsg + ": " : "", ssfi = flag3(this, "ssfi"), objType = _.type(obj).toLowerCase(), nType = _.type(n).toLowerCase(), errorMessage, shouldThrow = true;
         if (doLength && objType !== "map" && objType !== "set") {
             new Assertion2(obj, flagMsg, ssfi, true).to.have.property("length");
@@ -2532,8 +2794,8 @@ var assertions = function(chai2, _) {
     Assertion2.addMethod("above", assertAbove);
     Assertion2.addMethod("gt", assertAbove);
     Assertion2.addMethod("greaterThan", assertAbove);
-    function assertLeast(n, msg) {
-        if (msg) flag3(this, "message", msg);
+    function assertLeast(n, msg24) {
+        if (msg24) flag3(this, "message", msg24);
         var obj = flag3(this, "object"), doLength = flag3(this, "doLength"), flagMsg = flag3(this, "message"), msgPrefix = flagMsg ? flagMsg + ": " : "", ssfi = flag3(this, "ssfi"), objType = _.type(obj).toLowerCase(), nType = _.type(n).toLowerCase(), errorMessage, shouldThrow = true;
         if (doLength && objType !== "map" && objType !== "set") {
             new Assertion2(obj, flagMsg, ssfi, true).to.have.property("length");
@@ -2567,8 +2829,8 @@ var assertions = function(chai2, _) {
     Assertion2.addMethod("least", assertLeast);
     Assertion2.addMethod("gte", assertLeast);
     Assertion2.addMethod("greaterThanOrEqual", assertLeast);
-    function assertBelow(n, msg) {
-        if (msg) flag3(this, "message", msg);
+    function assertBelow(n, msg25) {
+        if (msg25) flag3(this, "message", msg25);
         var obj = flag3(this, "object"), doLength = flag3(this, "doLength"), flagMsg = flag3(this, "message"), msgPrefix = flagMsg ? flagMsg + ": " : "", ssfi = flag3(this, "ssfi"), objType = _.type(obj).toLowerCase(), nType = _.type(n).toLowerCase(), errorMessage, shouldThrow = true;
         if (doLength && objType !== "map" && objType !== "set") {
             new Assertion2(obj, flagMsg, ssfi, true).to.have.property("length");
@@ -2602,8 +2864,8 @@ var assertions = function(chai2, _) {
     Assertion2.addMethod("below", assertBelow);
     Assertion2.addMethod("lt", assertBelow);
     Assertion2.addMethod("lessThan", assertBelow);
-    function assertMost(n, msg) {
-        if (msg) flag3(this, "message", msg);
+    function assertMost(n, msg26) {
+        if (msg26) flag3(this, "message", msg26);
         var obj = flag3(this, "object"), doLength = flag3(this, "doLength"), flagMsg = flag3(this, "message"), msgPrefix = flagMsg ? flagMsg + ": " : "", ssfi = flag3(this, "ssfi"), objType = _.type(obj).toLowerCase(), nType = _.type(n).toLowerCase(), errorMessage, shouldThrow = true;
         if (doLength && objType !== "map" && objType !== "set") {
             new Assertion2(obj, flagMsg, ssfi, true).to.have.property("length");
@@ -2637,8 +2899,8 @@ var assertions = function(chai2, _) {
     Assertion2.addMethod("most", assertMost);
     Assertion2.addMethod("lte", assertMost);
     Assertion2.addMethod("lessThanOrEqual", assertMost);
-    Assertion2.addMethod("within", function(start, finish, msg) {
-        if (msg) flag3(this, "message", msg);
+    Assertion2.addMethod("within", function(start, finish, msg27) {
+        if (msg27) flag3(this, "message", msg27);
         var obj = flag3(this, "object"), doLength = flag3(this, "doLength"), flagMsg = flag3(this, "message"), msgPrefix = flagMsg ? flagMsg + ": " : "", ssfi = flag3(this, "ssfi"), objType = _.type(obj).toLowerCase(), startType = _.type(start).toLowerCase(), finishType = _.type(finish).toLowerCase(), errorMessage, shouldThrow = true, range = startType === "date" && finishType === "date" ? start.toUTCString() + ".." + finish.toUTCString() : start + ".." + finish;
         if (doLength && objType !== "map" && objType !== "set") {
             new Assertion2(obj, flagMsg, ssfi, true).to.have.property("length");
@@ -2669,8 +2931,8 @@ var assertions = function(chai2, _) {
             this.assert(obj >= start && obj <= finish, "expected #{this} to be within " + range, "expected #{this} to not be within " + range);
         }
     });
-    function assertInstanceOf(constructor, msg) {
-        if (msg) flag3(this, "message", msg);
+    function assertInstanceOf(constructor, msg28) {
+        if (msg28) flag3(this, "message", msg28);
         var target = flag3(this, "object");
         var ssfi = flag3(this, "ssfi");
         var flagMsg = flag3(this, "message");
@@ -2691,8 +2953,8 @@ var assertions = function(chai2, _) {
     }
     Assertion2.addMethod("instanceof", assertInstanceOf);
     Assertion2.addMethod("instanceOf", assertInstanceOf);
-    function assertProperty(name, val, msg) {
-        if (msg) flag3(this, "message", msg);
+    function assertProperty(name, val, msg29) {
+        if (msg29) flag3(this, "message", msg29);
         var isNested = flag3(this, "nested"), isOwn = flag3(this, "own"), flagMsg = flag3(this, "message"), obj = flag3(this, "object"), ssfi = flag3(this, "ssfi"), nameType = typeof name;
         flagMsg = flagMsg ? flagMsg + ": " : "";
         if (isNested) {
@@ -2735,12 +2997,12 @@ var assertions = function(chai2, _) {
     }
     Assertion2.addMethod("ownProperty", assertOwnProperty);
     Assertion2.addMethod("haveOwnProperty", assertOwnProperty);
-    function assertOwnPropertyDescriptor(name, descriptor, msg) {
+    function assertOwnPropertyDescriptor(name, descriptor, msg30) {
         if (typeof descriptor === "string") {
-            msg = descriptor;
+            msg30 = descriptor;
             descriptor = null;
         }
-        if (msg) flag3(this, "message", msg);
+        if (msg30) flag3(this, "message", msg30);
         var obj = flag3(this, "object");
         var actualDescriptor = Object.getOwnPropertyDescriptor(Object(obj), name);
         if (actualDescriptor && descriptor) {
@@ -2755,8 +3017,8 @@ var assertions = function(chai2, _) {
     function assertLengthChain() {
         flag3(this, "doLength", true);
     }
-    function assertLength(n, msg) {
-        if (msg) flag3(this, "message", msg);
+    function assertLength(n, msg31) {
+        if (msg31) flag3(this, "message", msg31);
         var obj = flag3(this, "object"), objType = _.type(obj).toLowerCase(), flagMsg = flag3(this, "message"), ssfi = flag3(this, "ssfi"), descriptor = "length", itemsCount;
         switch(objType){
             case "map":
@@ -2772,15 +3034,15 @@ var assertions = function(chai2, _) {
     }
     Assertion2.addChainableMethod("length", assertLength, assertLengthChain);
     Assertion2.addChainableMethod("lengthOf", assertLength, assertLengthChain);
-    function assertMatch(re, msg) {
-        if (msg) flag3(this, "message", msg);
+    function assertMatch(re, msg32) {
+        if (msg32) flag3(this, "message", msg32);
         var obj = flag3(this, "object");
         this.assert(re.exec(obj), "expected #{this} to match " + re, "expected #{this} not to match " + re);
     }
     Assertion2.addMethod("match", assertMatch);
     Assertion2.addMethod("matches", assertMatch);
-    Assertion2.addMethod("string", function(str, msg) {
-        if (msg) flag3(this, "message", msg);
+    Assertion2.addMethod("string", function(str, msg33) {
+        if (msg33) flag3(this, "message", msg33);
         var obj = flag3(this, "object"), flagMsg = flag3(this, "message"), ssfi = flag3(this, "ssfi");
         new Assertion2(obj, flagMsg, ssfi, true).is.a("string");
         this.assert(~obj.indexOf(str), "expected #{this} to contain " + _.inspect(str), "expected #{this} to not contain " + _.inspect(str));
@@ -2871,8 +3133,8 @@ var assertions = function(chai2, _) {
     }
     Assertion2.addMethod("keys", assertKeys);
     Assertion2.addMethod("key", assertKeys);
-    function assertThrows(errorLike, errMsgMatcher, msg) {
-        if (msg) flag3(this, "message", msg);
+    function assertThrows(errorLike, errMsgMatcher, msg34) {
+        if (msg34) flag3(this, "message", msg34);
         var obj = flag3(this, "object"), ssfi = flag3(this, "ssfi"), flagMsg = flag3(this, "message"), negate = flag3(this, "negate") || false;
         new Assertion2(obj, flagMsg, ssfi, true).is.a("function");
         if (errorLike instanceof RegExp || typeof errorLike === "string") {
@@ -2940,8 +3202,8 @@ var assertions = function(chai2, _) {
     Assertion2.addMethod("throw", assertThrows);
     Assertion2.addMethod("throws", assertThrows);
     Assertion2.addMethod("Throw", assertThrows);
-    function respondTo(method, msg) {
-        if (msg) flag3(this, "message", msg);
+    function respondTo(method, msg35) {
+        if (msg35) flag3(this, "message", msg35);
         var obj = flag3(this, "object"), itself = flag3(this, "itself"), context1 = typeof obj === "function" && !itself ? obj.prototype[method] : obj[method];
         this.assert(typeof context1 === "function", "expected #{this} to respond to " + _.inspect(method), "expected #{this} to not respond to " + _.inspect(method));
     }
@@ -2950,16 +3212,16 @@ var assertions = function(chai2, _) {
     Assertion2.addProperty("itself", function() {
         flag3(this, "itself", true);
     });
-    function satisfy(matcher, msg) {
-        if (msg) flag3(this, "message", msg);
+    function satisfy(matcher, msg36) {
+        if (msg36) flag3(this, "message", msg36);
         var obj = flag3(this, "object");
         var result = matcher(obj);
         this.assert(result, "expected #{this} to satisfy " + _.objDisplay(matcher), "expected #{this} to not satisfy" + _.objDisplay(matcher), flag3(this, "negate") ? false : true, result);
     }
     Assertion2.addMethod("satisfy", satisfy);
     Assertion2.addMethod("satisfies", satisfy);
-    function closeTo(expected, delta, msg) {
-        if (msg) flag3(this, "message", msg);
+    function closeTo(expected, delta, msg37) {
+        if (msg37) flag3(this, "message", msg37);
         var obj = flag3(this, "object"), flagMsg = flag3(this, "message"), ssfi = flag3(this, "ssfi");
         new Assertion2(obj, flagMsg, ssfi, true).is.a("number");
         if (typeof expected !== "number" || typeof delta !== "number") {
@@ -2991,8 +3253,8 @@ var assertions = function(chai2, _) {
             });
         });
     }
-    Assertion2.addMethod("members", function(subset, msg) {
-        if (msg) flag3(this, "message", msg);
+    Assertion2.addMethod("members", function(subset, msg38) {
+        if (msg38) flag3(this, "message", msg38);
         var obj = flag3(this, "object"), flagMsg = flag3(this, "message"), ssfi = flag3(this, "ssfi");
         new Assertion2(obj, flagMsg, ssfi, true).to.be.an("array");
         new Assertion2(subset, flagMsg, ssfi, true).to.be.an("array");
@@ -3011,8 +3273,8 @@ var assertions = function(chai2, _) {
         var cmp = flag3(this, "deep") ? _.eql : void 0;
         this.assert(isSubsetOf(subset, obj, cmp, contains, ordered), failMsg, failNegateMsg, subset, obj, true);
     });
-    function oneOf(list, msg) {
-        if (msg) flag3(this, "message", msg);
+    function oneOf(list, msg39) {
+        if (msg39) flag3(this, "message", msg39);
         var expected = flag3(this, "object"), flagMsg = flag3(this, "message"), ssfi = flag3(this, "ssfi"), contains = flag3(this, "contains"), isDeep = flag3(this, "deep");
         new Assertion2(list, flagMsg, ssfi, true).to.be.an("array");
         if (contains) {
@@ -3030,8 +3292,8 @@ var assertions = function(chai2, _) {
         }
     }
     Assertion2.addMethod("oneOf", oneOf);
-    function assertChanges(subject, prop, msg) {
-        if (msg) flag3(this, "message", msg);
+    function assertChanges(subject, prop, msg40) {
+        if (msg40) flag3(this, "message", msg40);
         var fn = flag3(this, "object"), flagMsg = flag3(this, "message"), ssfi = flag3(this, "ssfi");
         new Assertion2(fn, flagMsg, ssfi, true).is.a("function");
         var initial;
@@ -3054,8 +3316,8 @@ var assertions = function(chai2, _) {
     }
     Assertion2.addMethod("change", assertChanges);
     Assertion2.addMethod("changes", assertChanges);
-    function assertIncreases(subject, prop, msg) {
-        if (msg) flag3(this, "message", msg);
+    function assertIncreases(subject, prop, msg41) {
+        if (msg41) flag3(this, "message", msg41);
         var fn = flag3(this, "object"), flagMsg = flag3(this, "message"), ssfi = flag3(this, "ssfi");
         new Assertion2(fn, flagMsg, ssfi, true).is.a("function");
         var initial;
@@ -3079,8 +3341,8 @@ var assertions = function(chai2, _) {
     }
     Assertion2.addMethod("increase", assertIncreases);
     Assertion2.addMethod("increases", assertIncreases);
-    function assertDecreases(subject, prop, msg) {
-        if (msg) flag3(this, "message", msg);
+    function assertDecreases(subject, prop, msg42) {
+        if (msg42) flag3(this, "message", msg42);
         var fn = flag3(this, "object"), flagMsg = flag3(this, "message"), ssfi = flag3(this, "ssfi");
         new Assertion2(fn, flagMsg, ssfi, true).is.a("function");
         var initial;
@@ -3104,8 +3366,8 @@ var assertions = function(chai2, _) {
     }
     Assertion2.addMethod("decrease", assertDecreases);
     Assertion2.addMethod("decreases", assertDecreases);
-    function assertDelta(delta, msg) {
-        if (msg) flag3(this, "message", msg);
+    function assertDelta(delta, msg43) {
+        if (msg43) flag3(this, "message", msg43);
         var msgObj = flag3(this, "deltaMsgObj");
         var initial = flag3(this, "initialDeltaValue");
         var __final = flag3(this, "finalDeltaValue");
@@ -3192,24 +3454,24 @@ var should = function(chai2, util2) {
                 operator
             }, should2.fail);
         };
-        should2.equal = function(val1, val2, msg) {
-            new Assertion2(val1, msg).to.equal(val2);
+        should2.equal = function(val1, val2, msg44) {
+            new Assertion2(val1, msg44).to.equal(val2);
         };
-        should2.Throw = function(fn, errt, errs, msg) {
-            new Assertion2(fn, msg).to.Throw(errt, errs);
+        should2.Throw = function(fn, errt, errs, msg45) {
+            new Assertion2(fn, msg45).to.Throw(errt, errs);
         };
-        should2.exist = function(val, msg) {
-            new Assertion2(val, msg).to.exist;
+        should2.exist = function(val, msg46) {
+            new Assertion2(val, msg46).to.exist;
         };
         should2.not = {};
-        should2.not.equal = function(val1, val2, msg) {
-            new Assertion2(val1, msg).to.not.equal(val2);
+        should2.not.equal = function(val1, val2, msg47) {
+            new Assertion2(val1, msg47).to.not.equal(val2);
         };
-        should2.not.Throw = function(fn, errt, errs, msg) {
-            new Assertion2(fn, msg).to.not.Throw(errt, errs);
+        should2.not.Throw = function(fn, errt, errs, msg48) {
+            new Assertion2(fn, msg48).to.not.Throw(errt, errs);
         };
-        should2.not.exist = function(val, msg) {
-            new Assertion2(val, msg).to.not.exist;
+        should2.not.exist = function(val, msg49) {
+            new Assertion2(val, msg49).to.not.exist;
         };
         should2["throw"] = should2["Throw"];
         should2.not["throw"] = should2.not["Throw"];
@@ -3236,276 +3498,276 @@ var assert1 = function(chai2, util2) {
             operator
         }, assert2.fail);
     };
-    assert2.isOk = function(val, msg) {
-        new Assertion2(val, msg, assert2.isOk, true).is.ok;
+    assert2.isOk = function(val, msg50) {
+        new Assertion2(val, msg50, assert2.isOk, true).is.ok;
     };
-    assert2.isNotOk = function(val, msg) {
-        new Assertion2(val, msg, assert2.isNotOk, true).is.not.ok;
+    assert2.isNotOk = function(val, msg51) {
+        new Assertion2(val, msg51, assert2.isNotOk, true).is.not.ok;
     };
-    assert2.equal = function(act, exp, msg) {
-        var test3 = new Assertion2(act, msg, assert2.equal, true);
+    assert2.equal = function(act, exp, msg52) {
+        var test3 = new Assertion2(act, msg52, assert2.equal, true);
         test3.assert(exp == flag3(test3, "object"), "expected #{this} to equal #{exp}", "expected #{this} to not equal #{act}", exp, act, true);
     };
-    assert2.notEqual = function(act, exp, msg) {
-        var test3 = new Assertion2(act, msg, assert2.notEqual, true);
+    assert2.notEqual = function(act, exp, msg53) {
+        var test3 = new Assertion2(act, msg53, assert2.notEqual, true);
         test3.assert(exp != flag3(test3, "object"), "expected #{this} to not equal #{exp}", "expected #{this} to equal #{act}", exp, act, true);
     };
-    assert2.strictEqual = function(act, exp, msg) {
-        new Assertion2(act, msg, assert2.strictEqual, true).to.equal(exp);
+    assert2.strictEqual = function(act, exp, msg54) {
+        new Assertion2(act, msg54, assert2.strictEqual, true).to.equal(exp);
     };
-    assert2.notStrictEqual = function(act, exp, msg) {
-        new Assertion2(act, msg, assert2.notStrictEqual, true).to.not.equal(exp);
+    assert2.notStrictEqual = function(act, exp, msg55) {
+        new Assertion2(act, msg55, assert2.notStrictEqual, true).to.not.equal(exp);
     };
-    assert2.deepEqual = assert2.deepStrictEqual = function(act, exp, msg) {
-        new Assertion2(act, msg, assert2.deepEqual, true).to.eql(exp);
+    assert2.deepEqual = assert2.deepStrictEqual = function(act, exp, msg56) {
+        new Assertion2(act, msg56, assert2.deepEqual, true).to.eql(exp);
     };
-    assert2.notDeepEqual = function(act, exp, msg) {
-        new Assertion2(act, msg, assert2.notDeepEqual, true).to.not.eql(exp);
+    assert2.notDeepEqual = function(act, exp, msg57) {
+        new Assertion2(act, msg57, assert2.notDeepEqual, true).to.not.eql(exp);
     };
-    assert2.isAbove = function(val, abv, msg) {
-        new Assertion2(val, msg, assert2.isAbove, true).to.be.above(abv);
+    assert2.isAbove = function(val, abv, msg58) {
+        new Assertion2(val, msg58, assert2.isAbove, true).to.be.above(abv);
     };
-    assert2.isAtLeast = function(val, atlst, msg) {
-        new Assertion2(val, msg, assert2.isAtLeast, true).to.be.least(atlst);
+    assert2.isAtLeast = function(val, atlst, msg59) {
+        new Assertion2(val, msg59, assert2.isAtLeast, true).to.be.least(atlst);
     };
-    assert2.isBelow = function(val, blw, msg) {
-        new Assertion2(val, msg, assert2.isBelow, true).to.be.below(blw);
+    assert2.isBelow = function(val, blw, msg60) {
+        new Assertion2(val, msg60, assert2.isBelow, true).to.be.below(blw);
     };
-    assert2.isAtMost = function(val, atmst, msg) {
-        new Assertion2(val, msg, assert2.isAtMost, true).to.be.most(atmst);
+    assert2.isAtMost = function(val, atmst, msg61) {
+        new Assertion2(val, msg61, assert2.isAtMost, true).to.be.most(atmst);
     };
-    assert2.isTrue = function(val, msg) {
-        new Assertion2(val, msg, assert2.isTrue, true).is["true"];
+    assert2.isTrue = function(val, msg62) {
+        new Assertion2(val, msg62, assert2.isTrue, true).is["true"];
     };
-    assert2.isNotTrue = function(val, msg) {
-        new Assertion2(val, msg, assert2.isNotTrue, true).to.not.equal(true);
+    assert2.isNotTrue = function(val, msg63) {
+        new Assertion2(val, msg63, assert2.isNotTrue, true).to.not.equal(true);
     };
-    assert2.isFalse = function(val, msg) {
-        new Assertion2(val, msg, assert2.isFalse, true).is["false"];
+    assert2.isFalse = function(val, msg64) {
+        new Assertion2(val, msg64, assert2.isFalse, true).is["false"];
     };
-    assert2.isNotFalse = function(val, msg) {
-        new Assertion2(val, msg, assert2.isNotFalse, true).to.not.equal(false);
+    assert2.isNotFalse = function(val, msg65) {
+        new Assertion2(val, msg65, assert2.isNotFalse, true).to.not.equal(false);
     };
-    assert2.isNull = function(val, msg) {
-        new Assertion2(val, msg, assert2.isNull, true).to.equal(null);
+    assert2.isNull = function(val, msg66) {
+        new Assertion2(val, msg66, assert2.isNull, true).to.equal(null);
     };
-    assert2.isNotNull = function(val, msg) {
-        new Assertion2(val, msg, assert2.isNotNull, true).to.not.equal(null);
+    assert2.isNotNull = function(val, msg67) {
+        new Assertion2(val, msg67, assert2.isNotNull, true).to.not.equal(null);
     };
-    assert2.isNaN = function(val, msg) {
-        new Assertion2(val, msg, assert2.isNaN, true).to.be.NaN;
+    assert2.isNaN = function(val, msg68) {
+        new Assertion2(val, msg68, assert2.isNaN, true).to.be.NaN;
     };
-    assert2.isNotNaN = function(val, msg) {
-        new Assertion2(val, msg, assert2.isNotNaN, true).not.to.be.NaN;
+    assert2.isNotNaN = function(val, msg69) {
+        new Assertion2(val, msg69, assert2.isNotNaN, true).not.to.be.NaN;
     };
-    assert2.exists = function(val, msg) {
-        new Assertion2(val, msg, assert2.exists, true).to.exist;
+    assert2.exists = function(val, msg70) {
+        new Assertion2(val, msg70, assert2.exists, true).to.exist;
     };
-    assert2.notExists = function(val, msg) {
-        new Assertion2(val, msg, assert2.notExists, true).to.not.exist;
+    assert2.notExists = function(val, msg71) {
+        new Assertion2(val, msg71, assert2.notExists, true).to.not.exist;
     };
-    assert2.isUndefined = function(val, msg) {
-        new Assertion2(val, msg, assert2.isUndefined, true).to.equal(void 0);
+    assert2.isUndefined = function(val, msg72) {
+        new Assertion2(val, msg72, assert2.isUndefined, true).to.equal(void 0);
     };
-    assert2.isDefined = function(val, msg) {
-        new Assertion2(val, msg, assert2.isDefined, true).to.not.equal(void 0);
+    assert2.isDefined = function(val, msg73) {
+        new Assertion2(val, msg73, assert2.isDefined, true).to.not.equal(void 0);
     };
-    assert2.isFunction = function(val, msg) {
-        new Assertion2(val, msg, assert2.isFunction, true).to.be.a("function");
+    assert2.isFunction = function(val, msg74) {
+        new Assertion2(val, msg74, assert2.isFunction, true).to.be.a("function");
     };
-    assert2.isNotFunction = function(val, msg) {
-        new Assertion2(val, msg, assert2.isNotFunction, true).to.not.be.a("function");
+    assert2.isNotFunction = function(val, msg75) {
+        new Assertion2(val, msg75, assert2.isNotFunction, true).to.not.be.a("function");
     };
-    assert2.isObject = function(val, msg) {
-        new Assertion2(val, msg, assert2.isObject, true).to.be.a("object");
+    assert2.isObject = function(val, msg76) {
+        new Assertion2(val, msg76, assert2.isObject, true).to.be.a("object");
     };
-    assert2.isNotObject = function(val, msg) {
-        new Assertion2(val, msg, assert2.isNotObject, true).to.not.be.a("object");
+    assert2.isNotObject = function(val, msg77) {
+        new Assertion2(val, msg77, assert2.isNotObject, true).to.not.be.a("object");
     };
-    assert2.isArray = function(val, msg) {
-        new Assertion2(val, msg, assert2.isArray, true).to.be.an("array");
+    assert2.isArray = function(val, msg78) {
+        new Assertion2(val, msg78, assert2.isArray, true).to.be.an("array");
     };
-    assert2.isNotArray = function(val, msg) {
-        new Assertion2(val, msg, assert2.isNotArray, true).to.not.be.an("array");
+    assert2.isNotArray = function(val, msg79) {
+        new Assertion2(val, msg79, assert2.isNotArray, true).to.not.be.an("array");
     };
-    assert2.isString = function(val, msg) {
-        new Assertion2(val, msg, assert2.isString, true).to.be.a("string");
+    assert2.isString = function(val, msg80) {
+        new Assertion2(val, msg80, assert2.isString, true).to.be.a("string");
     };
-    assert2.isNotString = function(val, msg) {
-        new Assertion2(val, msg, assert2.isNotString, true).to.not.be.a("string");
+    assert2.isNotString = function(val, msg81) {
+        new Assertion2(val, msg81, assert2.isNotString, true).to.not.be.a("string");
     };
-    assert2.isNumber = function(val, msg) {
-        new Assertion2(val, msg, assert2.isNumber, true).to.be.a("number");
+    assert2.isNumber = function(val, msg82) {
+        new Assertion2(val, msg82, assert2.isNumber, true).to.be.a("number");
     };
-    assert2.isNotNumber = function(val, msg) {
-        new Assertion2(val, msg, assert2.isNotNumber, true).to.not.be.a("number");
+    assert2.isNotNumber = function(val, msg83) {
+        new Assertion2(val, msg83, assert2.isNotNumber, true).to.not.be.a("number");
     };
-    assert2.isFinite = function(val, msg) {
-        new Assertion2(val, msg, assert2.isFinite, true).to.be.finite;
+    assert2.isFinite = function(val, msg84) {
+        new Assertion2(val, msg84, assert2.isFinite, true).to.be.finite;
     };
-    assert2.isBoolean = function(val, msg) {
-        new Assertion2(val, msg, assert2.isBoolean, true).to.be.a("boolean");
+    assert2.isBoolean = function(val, msg85) {
+        new Assertion2(val, msg85, assert2.isBoolean, true).to.be.a("boolean");
     };
-    assert2.isNotBoolean = function(val, msg) {
-        new Assertion2(val, msg, assert2.isNotBoolean, true).to.not.be.a("boolean");
+    assert2.isNotBoolean = function(val, msg86) {
+        new Assertion2(val, msg86, assert2.isNotBoolean, true).to.not.be.a("boolean");
     };
-    assert2.typeOf = function(val, type2, msg) {
-        new Assertion2(val, msg, assert2.typeOf, true).to.be.a(type2);
+    assert2.typeOf = function(val, type2, msg87) {
+        new Assertion2(val, msg87, assert2.typeOf, true).to.be.a(type2);
     };
-    assert2.notTypeOf = function(val, type2, msg) {
-        new Assertion2(val, msg, assert2.notTypeOf, true).to.not.be.a(type2);
+    assert2.notTypeOf = function(val, type2, msg88) {
+        new Assertion2(val, msg88, assert2.notTypeOf, true).to.not.be.a(type2);
     };
-    assert2.instanceOf = function(val, type2, msg) {
-        new Assertion2(val, msg, assert2.instanceOf, true).to.be.instanceOf(type2);
+    assert2.instanceOf = function(val, type2, msg89) {
+        new Assertion2(val, msg89, assert2.instanceOf, true).to.be.instanceOf(type2);
     };
-    assert2.notInstanceOf = function(val, type2, msg) {
-        new Assertion2(val, msg, assert2.notInstanceOf, true).to.not.be.instanceOf(type2);
+    assert2.notInstanceOf = function(val, type2, msg90) {
+        new Assertion2(val, msg90, assert2.notInstanceOf, true).to.not.be.instanceOf(type2);
     };
-    assert2.include = function(exp, inc, msg) {
-        new Assertion2(exp, msg, assert2.include, true).include(inc);
+    assert2.include = function(exp, inc, msg91) {
+        new Assertion2(exp, msg91, assert2.include, true).include(inc);
     };
-    assert2.notInclude = function(exp, inc, msg) {
-        new Assertion2(exp, msg, assert2.notInclude, true).not.include(inc);
+    assert2.notInclude = function(exp, inc, msg92) {
+        new Assertion2(exp, msg92, assert2.notInclude, true).not.include(inc);
     };
-    assert2.deepInclude = function(exp, inc, msg) {
-        new Assertion2(exp, msg, assert2.deepInclude, true).deep.include(inc);
+    assert2.deepInclude = function(exp, inc, msg93) {
+        new Assertion2(exp, msg93, assert2.deepInclude, true).deep.include(inc);
     };
-    assert2.notDeepInclude = function(exp, inc, msg) {
-        new Assertion2(exp, msg, assert2.notDeepInclude, true).not.deep.include(inc);
+    assert2.notDeepInclude = function(exp, inc, msg94) {
+        new Assertion2(exp, msg94, assert2.notDeepInclude, true).not.deep.include(inc);
     };
-    assert2.nestedInclude = function(exp, inc, msg) {
-        new Assertion2(exp, msg, assert2.nestedInclude, true).nested.include(inc);
+    assert2.nestedInclude = function(exp, inc, msg95) {
+        new Assertion2(exp, msg95, assert2.nestedInclude, true).nested.include(inc);
     };
-    assert2.notNestedInclude = function(exp, inc, msg) {
-        new Assertion2(exp, msg, assert2.notNestedInclude, true).not.nested.include(inc);
+    assert2.notNestedInclude = function(exp, inc, msg96) {
+        new Assertion2(exp, msg96, assert2.notNestedInclude, true).not.nested.include(inc);
     };
-    assert2.deepNestedInclude = function(exp, inc, msg) {
-        new Assertion2(exp, msg, assert2.deepNestedInclude, true).deep.nested.include(inc);
+    assert2.deepNestedInclude = function(exp, inc, msg97) {
+        new Assertion2(exp, msg97, assert2.deepNestedInclude, true).deep.nested.include(inc);
     };
-    assert2.notDeepNestedInclude = function(exp, inc, msg) {
-        new Assertion2(exp, msg, assert2.notDeepNestedInclude, true).not.deep.nested.include(inc);
+    assert2.notDeepNestedInclude = function(exp, inc, msg98) {
+        new Assertion2(exp, msg98, assert2.notDeepNestedInclude, true).not.deep.nested.include(inc);
     };
-    assert2.ownInclude = function(exp, inc, msg) {
-        new Assertion2(exp, msg, assert2.ownInclude, true).own.include(inc);
+    assert2.ownInclude = function(exp, inc, msg99) {
+        new Assertion2(exp, msg99, assert2.ownInclude, true).own.include(inc);
     };
-    assert2.notOwnInclude = function(exp, inc, msg) {
-        new Assertion2(exp, msg, assert2.notOwnInclude, true).not.own.include(inc);
+    assert2.notOwnInclude = function(exp, inc, msg100) {
+        new Assertion2(exp, msg100, assert2.notOwnInclude, true).not.own.include(inc);
     };
-    assert2.deepOwnInclude = function(exp, inc, msg) {
-        new Assertion2(exp, msg, assert2.deepOwnInclude, true).deep.own.include(inc);
+    assert2.deepOwnInclude = function(exp, inc, msg101) {
+        new Assertion2(exp, msg101, assert2.deepOwnInclude, true).deep.own.include(inc);
     };
-    assert2.notDeepOwnInclude = function(exp, inc, msg) {
-        new Assertion2(exp, msg, assert2.notDeepOwnInclude, true).not.deep.own.include(inc);
+    assert2.notDeepOwnInclude = function(exp, inc, msg102) {
+        new Assertion2(exp, msg102, assert2.notDeepOwnInclude, true).not.deep.own.include(inc);
     };
-    assert2.match = function(exp, re, msg) {
-        new Assertion2(exp, msg, assert2.match, true).to.match(re);
+    assert2.match = function(exp, re, msg103) {
+        new Assertion2(exp, msg103, assert2.match, true).to.match(re);
     };
-    assert2.notMatch = function(exp, re, msg) {
-        new Assertion2(exp, msg, assert2.notMatch, true).to.not.match(re);
+    assert2.notMatch = function(exp, re, msg104) {
+        new Assertion2(exp, msg104, assert2.notMatch, true).to.not.match(re);
     };
-    assert2.property = function(obj, prop, msg) {
-        new Assertion2(obj, msg, assert2.property, true).to.have.property(prop);
+    assert2.property = function(obj, prop, msg105) {
+        new Assertion2(obj, msg105, assert2.property, true).to.have.property(prop);
     };
-    assert2.notProperty = function(obj, prop, msg) {
-        new Assertion2(obj, msg, assert2.notProperty, true).to.not.have.property(prop);
+    assert2.notProperty = function(obj, prop, msg106) {
+        new Assertion2(obj, msg106, assert2.notProperty, true).to.not.have.property(prop);
     };
-    assert2.propertyVal = function(obj, prop, val, msg) {
-        new Assertion2(obj, msg, assert2.propertyVal, true).to.have.property(prop, val);
+    assert2.propertyVal = function(obj, prop, val, msg107) {
+        new Assertion2(obj, msg107, assert2.propertyVal, true).to.have.property(prop, val);
     };
-    assert2.notPropertyVal = function(obj, prop, val, msg) {
-        new Assertion2(obj, msg, assert2.notPropertyVal, true).to.not.have.property(prop, val);
+    assert2.notPropertyVal = function(obj, prop, val, msg108) {
+        new Assertion2(obj, msg108, assert2.notPropertyVal, true).to.not.have.property(prop, val);
     };
-    assert2.deepPropertyVal = function(obj, prop, val, msg) {
-        new Assertion2(obj, msg, assert2.deepPropertyVal, true).to.have.deep.property(prop, val);
+    assert2.deepPropertyVal = function(obj, prop, val, msg109) {
+        new Assertion2(obj, msg109, assert2.deepPropertyVal, true).to.have.deep.property(prop, val);
     };
-    assert2.notDeepPropertyVal = function(obj, prop, val, msg) {
-        new Assertion2(obj, msg, assert2.notDeepPropertyVal, true).to.not.have.deep.property(prop, val);
+    assert2.notDeepPropertyVal = function(obj, prop, val, msg110) {
+        new Assertion2(obj, msg110, assert2.notDeepPropertyVal, true).to.not.have.deep.property(prop, val);
     };
-    assert2.ownProperty = function(obj, prop, msg) {
-        new Assertion2(obj, msg, assert2.ownProperty, true).to.have.own.property(prop);
+    assert2.ownProperty = function(obj, prop, msg111) {
+        new Assertion2(obj, msg111, assert2.ownProperty, true).to.have.own.property(prop);
     };
-    assert2.notOwnProperty = function(obj, prop, msg) {
-        new Assertion2(obj, msg, assert2.notOwnProperty, true).to.not.have.own.property(prop);
+    assert2.notOwnProperty = function(obj, prop, msg112) {
+        new Assertion2(obj, msg112, assert2.notOwnProperty, true).to.not.have.own.property(prop);
     };
-    assert2.ownPropertyVal = function(obj, prop, value, msg) {
-        new Assertion2(obj, msg, assert2.ownPropertyVal, true).to.have.own.property(prop, value);
+    assert2.ownPropertyVal = function(obj, prop, value, msg113) {
+        new Assertion2(obj, msg113, assert2.ownPropertyVal, true).to.have.own.property(prop, value);
     };
-    assert2.notOwnPropertyVal = function(obj, prop, value, msg) {
-        new Assertion2(obj, msg, assert2.notOwnPropertyVal, true).to.not.have.own.property(prop, value);
+    assert2.notOwnPropertyVal = function(obj, prop, value, msg114) {
+        new Assertion2(obj, msg114, assert2.notOwnPropertyVal, true).to.not.have.own.property(prop, value);
     };
-    assert2.deepOwnPropertyVal = function(obj, prop, value, msg) {
-        new Assertion2(obj, msg, assert2.deepOwnPropertyVal, true).to.have.deep.own.property(prop, value);
+    assert2.deepOwnPropertyVal = function(obj, prop, value, msg115) {
+        new Assertion2(obj, msg115, assert2.deepOwnPropertyVal, true).to.have.deep.own.property(prop, value);
     };
-    assert2.notDeepOwnPropertyVal = function(obj, prop, value, msg) {
-        new Assertion2(obj, msg, assert2.notDeepOwnPropertyVal, true).to.not.have.deep.own.property(prop, value);
+    assert2.notDeepOwnPropertyVal = function(obj, prop, value, msg116) {
+        new Assertion2(obj, msg116, assert2.notDeepOwnPropertyVal, true).to.not.have.deep.own.property(prop, value);
     };
-    assert2.nestedProperty = function(obj, prop, msg) {
-        new Assertion2(obj, msg, assert2.nestedProperty, true).to.have.nested.property(prop);
+    assert2.nestedProperty = function(obj, prop, msg117) {
+        new Assertion2(obj, msg117, assert2.nestedProperty, true).to.have.nested.property(prop);
     };
-    assert2.notNestedProperty = function(obj, prop, msg) {
-        new Assertion2(obj, msg, assert2.notNestedProperty, true).to.not.have.nested.property(prop);
+    assert2.notNestedProperty = function(obj, prop, msg118) {
+        new Assertion2(obj, msg118, assert2.notNestedProperty, true).to.not.have.nested.property(prop);
     };
-    assert2.nestedPropertyVal = function(obj, prop, val, msg) {
-        new Assertion2(obj, msg, assert2.nestedPropertyVal, true).to.have.nested.property(prop, val);
+    assert2.nestedPropertyVal = function(obj, prop, val, msg119) {
+        new Assertion2(obj, msg119, assert2.nestedPropertyVal, true).to.have.nested.property(prop, val);
     };
-    assert2.notNestedPropertyVal = function(obj, prop, val, msg) {
-        new Assertion2(obj, msg, assert2.notNestedPropertyVal, true).to.not.have.nested.property(prop, val);
+    assert2.notNestedPropertyVal = function(obj, prop, val, msg120) {
+        new Assertion2(obj, msg120, assert2.notNestedPropertyVal, true).to.not.have.nested.property(prop, val);
     };
-    assert2.deepNestedPropertyVal = function(obj, prop, val, msg) {
-        new Assertion2(obj, msg, assert2.deepNestedPropertyVal, true).to.have.deep.nested.property(prop, val);
+    assert2.deepNestedPropertyVal = function(obj, prop, val, msg121) {
+        new Assertion2(obj, msg121, assert2.deepNestedPropertyVal, true).to.have.deep.nested.property(prop, val);
     };
-    assert2.notDeepNestedPropertyVal = function(obj, prop, val, msg) {
-        new Assertion2(obj, msg, assert2.notDeepNestedPropertyVal, true).to.not.have.deep.nested.property(prop, val);
+    assert2.notDeepNestedPropertyVal = function(obj, prop, val, msg122) {
+        new Assertion2(obj, msg122, assert2.notDeepNestedPropertyVal, true).to.not.have.deep.nested.property(prop, val);
     };
-    assert2.lengthOf = function(exp, len, msg) {
-        new Assertion2(exp, msg, assert2.lengthOf, true).to.have.lengthOf(len);
+    assert2.lengthOf = function(exp, len, msg123) {
+        new Assertion2(exp, msg123, assert2.lengthOf, true).to.have.lengthOf(len);
     };
-    assert2.hasAnyKeys = function(obj, keys, msg) {
-        new Assertion2(obj, msg, assert2.hasAnyKeys, true).to.have.any.keys(keys);
+    assert2.hasAnyKeys = function(obj, keys, msg124) {
+        new Assertion2(obj, msg124, assert2.hasAnyKeys, true).to.have.any.keys(keys);
     };
-    assert2.hasAllKeys = function(obj, keys, msg) {
-        new Assertion2(obj, msg, assert2.hasAllKeys, true).to.have.all.keys(keys);
+    assert2.hasAllKeys = function(obj, keys, msg125) {
+        new Assertion2(obj, msg125, assert2.hasAllKeys, true).to.have.all.keys(keys);
     };
-    assert2.containsAllKeys = function(obj, keys, msg) {
-        new Assertion2(obj, msg, assert2.containsAllKeys, true).to.contain.all.keys(keys);
+    assert2.containsAllKeys = function(obj, keys, msg126) {
+        new Assertion2(obj, msg126, assert2.containsAllKeys, true).to.contain.all.keys(keys);
     };
-    assert2.doesNotHaveAnyKeys = function(obj, keys, msg) {
-        new Assertion2(obj, msg, assert2.doesNotHaveAnyKeys, true).to.not.have.any.keys(keys);
+    assert2.doesNotHaveAnyKeys = function(obj, keys, msg127) {
+        new Assertion2(obj, msg127, assert2.doesNotHaveAnyKeys, true).to.not.have.any.keys(keys);
     };
-    assert2.doesNotHaveAllKeys = function(obj, keys, msg) {
-        new Assertion2(obj, msg, assert2.doesNotHaveAllKeys, true).to.not.have.all.keys(keys);
+    assert2.doesNotHaveAllKeys = function(obj, keys, msg128) {
+        new Assertion2(obj, msg128, assert2.doesNotHaveAllKeys, true).to.not.have.all.keys(keys);
     };
-    assert2.hasAnyDeepKeys = function(obj, keys, msg) {
-        new Assertion2(obj, msg, assert2.hasAnyDeepKeys, true).to.have.any.deep.keys(keys);
+    assert2.hasAnyDeepKeys = function(obj, keys, msg129) {
+        new Assertion2(obj, msg129, assert2.hasAnyDeepKeys, true).to.have.any.deep.keys(keys);
     };
-    assert2.hasAllDeepKeys = function(obj, keys, msg) {
-        new Assertion2(obj, msg, assert2.hasAllDeepKeys, true).to.have.all.deep.keys(keys);
+    assert2.hasAllDeepKeys = function(obj, keys, msg130) {
+        new Assertion2(obj, msg130, assert2.hasAllDeepKeys, true).to.have.all.deep.keys(keys);
     };
-    assert2.containsAllDeepKeys = function(obj, keys, msg) {
-        new Assertion2(obj, msg, assert2.containsAllDeepKeys, true).to.contain.all.deep.keys(keys);
+    assert2.containsAllDeepKeys = function(obj, keys, msg131) {
+        new Assertion2(obj, msg131, assert2.containsAllDeepKeys, true).to.contain.all.deep.keys(keys);
     };
-    assert2.doesNotHaveAnyDeepKeys = function(obj, keys, msg) {
-        new Assertion2(obj, msg, assert2.doesNotHaveAnyDeepKeys, true).to.not.have.any.deep.keys(keys);
+    assert2.doesNotHaveAnyDeepKeys = function(obj, keys, msg132) {
+        new Assertion2(obj, msg132, assert2.doesNotHaveAnyDeepKeys, true).to.not.have.any.deep.keys(keys);
     };
-    assert2.doesNotHaveAllDeepKeys = function(obj, keys, msg) {
-        new Assertion2(obj, msg, assert2.doesNotHaveAllDeepKeys, true).to.not.have.all.deep.keys(keys);
+    assert2.doesNotHaveAllDeepKeys = function(obj, keys, msg133) {
+        new Assertion2(obj, msg133, assert2.doesNotHaveAllDeepKeys, true).to.not.have.all.deep.keys(keys);
     };
-    assert2.throws = function(fn, errorLike, errMsgMatcher, msg) {
+    assert2.throws = function(fn, errorLike, errMsgMatcher, msg134) {
         if (typeof errorLike === "string" || errorLike instanceof RegExp) {
             errMsgMatcher = errorLike;
             errorLike = null;
         }
-        var assertErr = new Assertion2(fn, msg, assert2.throws, true).to.throw(errorLike, errMsgMatcher);
+        var assertErr = new Assertion2(fn, msg134, assert2.throws, true).to.throw(errorLike, errMsgMatcher);
         return flag3(assertErr, "object");
     };
-    assert2.doesNotThrow = function(fn, errorLike, errMsgMatcher, msg) {
+    assert2.doesNotThrow = function(fn, errorLike, errMsgMatcher, msg135) {
         if (typeof errorLike === "string" || errorLike instanceof RegExp) {
             errMsgMatcher = errorLike;
             errorLike = null;
         }
-        new Assertion2(fn, msg, assert2.doesNotThrow, true).to.not.throw(errorLike, errMsgMatcher);
+        new Assertion2(fn, msg135, assert2.doesNotThrow, true).to.not.throw(errorLike, errMsgMatcher);
     };
-    assert2.operator = function(val, operator, val2, msg) {
+    assert2.operator = function(val, operator, val2, msg136) {
         var ok;
         switch(operator){
             case "==":
@@ -3533,216 +3795,216 @@ var assert1 = function(chai2, util2) {
                 ok = val !== val2;
                 break;
             default:
-                msg = msg ? msg + ": " : msg;
-                throw new chai2.AssertionError(msg + 'Invalid operator "' + operator + '"', void 0, assert2.operator);
+                msg136 = msg136 ? msg136 + ": " : msg136;
+                throw new chai2.AssertionError(msg136 + 'Invalid operator "' + operator + '"', void 0, assert2.operator);
         }
-        var test3 = new Assertion2(ok, msg, assert2.operator, true);
+        var test3 = new Assertion2(ok, msg136, assert2.operator, true);
         test3.assert(flag3(test3, "object") === true, "expected " + util2.inspect(val) + " to be " + operator + " " + util2.inspect(val2), "expected " + util2.inspect(val) + " to not be " + operator + " " + util2.inspect(val2));
     };
-    assert2.closeTo = function(act, exp, delta, msg) {
-        new Assertion2(act, msg, assert2.closeTo, true).to.be.closeTo(exp, delta);
+    assert2.closeTo = function(act, exp, delta, msg137) {
+        new Assertion2(act, msg137, assert2.closeTo, true).to.be.closeTo(exp, delta);
     };
-    assert2.approximately = function(act, exp, delta, msg) {
-        new Assertion2(act, msg, assert2.approximately, true).to.be.approximately(exp, delta);
+    assert2.approximately = function(act, exp, delta, msg138) {
+        new Assertion2(act, msg138, assert2.approximately, true).to.be.approximately(exp, delta);
     };
-    assert2.sameMembers = function(set1, set2, msg) {
-        new Assertion2(set1, msg, assert2.sameMembers, true).to.have.same.members(set2);
+    assert2.sameMembers = function(set1, set2, msg139) {
+        new Assertion2(set1, msg139, assert2.sameMembers, true).to.have.same.members(set2);
     };
-    assert2.notSameMembers = function(set1, set2, msg) {
-        new Assertion2(set1, msg, assert2.notSameMembers, true).to.not.have.same.members(set2);
+    assert2.notSameMembers = function(set1, set2, msg140) {
+        new Assertion2(set1, msg140, assert2.notSameMembers, true).to.not.have.same.members(set2);
     };
-    assert2.sameDeepMembers = function(set1, set2, msg) {
-        new Assertion2(set1, msg, assert2.sameDeepMembers, true).to.have.same.deep.members(set2);
+    assert2.sameDeepMembers = function(set1, set2, msg141) {
+        new Assertion2(set1, msg141, assert2.sameDeepMembers, true).to.have.same.deep.members(set2);
     };
-    assert2.notSameDeepMembers = function(set1, set2, msg) {
-        new Assertion2(set1, msg, assert2.notSameDeepMembers, true).to.not.have.same.deep.members(set2);
+    assert2.notSameDeepMembers = function(set1, set2, msg142) {
+        new Assertion2(set1, msg142, assert2.notSameDeepMembers, true).to.not.have.same.deep.members(set2);
     };
-    assert2.sameOrderedMembers = function(set1, set2, msg) {
-        new Assertion2(set1, msg, assert2.sameOrderedMembers, true).to.have.same.ordered.members(set2);
+    assert2.sameOrderedMembers = function(set1, set2, msg143) {
+        new Assertion2(set1, msg143, assert2.sameOrderedMembers, true).to.have.same.ordered.members(set2);
     };
-    assert2.notSameOrderedMembers = function(set1, set2, msg) {
-        new Assertion2(set1, msg, assert2.notSameOrderedMembers, true).to.not.have.same.ordered.members(set2);
+    assert2.notSameOrderedMembers = function(set1, set2, msg144) {
+        new Assertion2(set1, msg144, assert2.notSameOrderedMembers, true).to.not.have.same.ordered.members(set2);
     };
-    assert2.sameDeepOrderedMembers = function(set1, set2, msg) {
-        new Assertion2(set1, msg, assert2.sameDeepOrderedMembers, true).to.have.same.deep.ordered.members(set2);
+    assert2.sameDeepOrderedMembers = function(set1, set2, msg145) {
+        new Assertion2(set1, msg145, assert2.sameDeepOrderedMembers, true).to.have.same.deep.ordered.members(set2);
     };
-    assert2.notSameDeepOrderedMembers = function(set1, set2, msg) {
-        new Assertion2(set1, msg, assert2.notSameDeepOrderedMembers, true).to.not.have.same.deep.ordered.members(set2);
+    assert2.notSameDeepOrderedMembers = function(set1, set2, msg146) {
+        new Assertion2(set1, msg146, assert2.notSameDeepOrderedMembers, true).to.not.have.same.deep.ordered.members(set2);
     };
-    assert2.includeMembers = function(superset, subset, msg) {
-        new Assertion2(superset, msg, assert2.includeMembers, true).to.include.members(subset);
+    assert2.includeMembers = function(superset, subset, msg147) {
+        new Assertion2(superset, msg147, assert2.includeMembers, true).to.include.members(subset);
     };
-    assert2.notIncludeMembers = function(superset, subset, msg) {
-        new Assertion2(superset, msg, assert2.notIncludeMembers, true).to.not.include.members(subset);
+    assert2.notIncludeMembers = function(superset, subset, msg148) {
+        new Assertion2(superset, msg148, assert2.notIncludeMembers, true).to.not.include.members(subset);
     };
-    assert2.includeDeepMembers = function(superset, subset, msg) {
-        new Assertion2(superset, msg, assert2.includeDeepMembers, true).to.include.deep.members(subset);
+    assert2.includeDeepMembers = function(superset, subset, msg149) {
+        new Assertion2(superset, msg149, assert2.includeDeepMembers, true).to.include.deep.members(subset);
     };
-    assert2.notIncludeDeepMembers = function(superset, subset, msg) {
-        new Assertion2(superset, msg, assert2.notIncludeDeepMembers, true).to.not.include.deep.members(subset);
+    assert2.notIncludeDeepMembers = function(superset, subset, msg150) {
+        new Assertion2(superset, msg150, assert2.notIncludeDeepMembers, true).to.not.include.deep.members(subset);
     };
-    assert2.includeOrderedMembers = function(superset, subset, msg) {
-        new Assertion2(superset, msg, assert2.includeOrderedMembers, true).to.include.ordered.members(subset);
+    assert2.includeOrderedMembers = function(superset, subset, msg151) {
+        new Assertion2(superset, msg151, assert2.includeOrderedMembers, true).to.include.ordered.members(subset);
     };
-    assert2.notIncludeOrderedMembers = function(superset, subset, msg) {
-        new Assertion2(superset, msg, assert2.notIncludeOrderedMembers, true).to.not.include.ordered.members(subset);
+    assert2.notIncludeOrderedMembers = function(superset, subset, msg152) {
+        new Assertion2(superset, msg152, assert2.notIncludeOrderedMembers, true).to.not.include.ordered.members(subset);
     };
-    assert2.includeDeepOrderedMembers = function(superset, subset, msg) {
-        new Assertion2(superset, msg, assert2.includeDeepOrderedMembers, true).to.include.deep.ordered.members(subset);
+    assert2.includeDeepOrderedMembers = function(superset, subset, msg153) {
+        new Assertion2(superset, msg153, assert2.includeDeepOrderedMembers, true).to.include.deep.ordered.members(subset);
     };
-    assert2.notIncludeDeepOrderedMembers = function(superset, subset, msg) {
-        new Assertion2(superset, msg, assert2.notIncludeDeepOrderedMembers, true).to.not.include.deep.ordered.members(subset);
+    assert2.notIncludeDeepOrderedMembers = function(superset, subset, msg154) {
+        new Assertion2(superset, msg154, assert2.notIncludeDeepOrderedMembers, true).to.not.include.deep.ordered.members(subset);
     };
-    assert2.oneOf = function(inList, list, msg) {
-        new Assertion2(inList, msg, assert2.oneOf, true).to.be.oneOf(list);
+    assert2.oneOf = function(inList, list, msg155) {
+        new Assertion2(inList, msg155, assert2.oneOf, true).to.be.oneOf(list);
     };
-    assert2.changes = function(fn, obj, prop, msg) {
+    assert2.changes = function(fn, obj, prop, msg156) {
         if (arguments.length === 3 && typeof obj === "function") {
-            msg = prop;
+            msg156 = prop;
             prop = null;
         }
-        new Assertion2(fn, msg, assert2.changes, true).to.change(obj, prop);
+        new Assertion2(fn, msg156, assert2.changes, true).to.change(obj, prop);
     };
-    assert2.changesBy = function(fn, obj, prop, delta, msg) {
+    assert2.changesBy = function(fn, obj, prop, delta, msg157) {
         if (arguments.length === 4 && typeof obj === "function") {
             var tmpMsg = delta;
             delta = prop;
-            msg = tmpMsg;
+            msg157 = tmpMsg;
         } else if (arguments.length === 3) {
             delta = prop;
             prop = null;
         }
-        new Assertion2(fn, msg, assert2.changesBy, true).to.change(obj, prop).by(delta);
+        new Assertion2(fn, msg157, assert2.changesBy, true).to.change(obj, prop).by(delta);
     };
-    assert2.doesNotChange = function(fn, obj, prop, msg) {
+    assert2.doesNotChange = function(fn, obj, prop, msg158) {
         if (arguments.length === 3 && typeof obj === "function") {
-            msg = prop;
+            msg158 = prop;
             prop = null;
         }
-        return new Assertion2(fn, msg, assert2.doesNotChange, true).to.not.change(obj, prop);
+        return new Assertion2(fn, msg158, assert2.doesNotChange, true).to.not.change(obj, prop);
     };
-    assert2.changesButNotBy = function(fn, obj, prop, delta, msg) {
+    assert2.changesButNotBy = function(fn, obj, prop, delta, msg159) {
         if (arguments.length === 4 && typeof obj === "function") {
             var tmpMsg = delta;
             delta = prop;
-            msg = tmpMsg;
+            msg159 = tmpMsg;
         } else if (arguments.length === 3) {
             delta = prop;
             prop = null;
         }
-        new Assertion2(fn, msg, assert2.changesButNotBy, true).to.change(obj, prop).but.not.by(delta);
+        new Assertion2(fn, msg159, assert2.changesButNotBy, true).to.change(obj, prop).but.not.by(delta);
     };
-    assert2.increases = function(fn, obj, prop, msg) {
+    assert2.increases = function(fn, obj, prop, msg160) {
         if (arguments.length === 3 && typeof obj === "function") {
-            msg = prop;
+            msg160 = prop;
             prop = null;
         }
-        return new Assertion2(fn, msg, assert2.increases, true).to.increase(obj, prop);
+        return new Assertion2(fn, msg160, assert2.increases, true).to.increase(obj, prop);
     };
-    assert2.increasesBy = function(fn, obj, prop, delta, msg) {
+    assert2.increasesBy = function(fn, obj, prop, delta, msg161) {
         if (arguments.length === 4 && typeof obj === "function") {
             var tmpMsg = delta;
             delta = prop;
-            msg = tmpMsg;
+            msg161 = tmpMsg;
         } else if (arguments.length === 3) {
             delta = prop;
             prop = null;
         }
-        new Assertion2(fn, msg, assert2.increasesBy, true).to.increase(obj, prop).by(delta);
+        new Assertion2(fn, msg161, assert2.increasesBy, true).to.increase(obj, prop).by(delta);
     };
-    assert2.doesNotIncrease = function(fn, obj, prop, msg) {
+    assert2.doesNotIncrease = function(fn, obj, prop, msg162) {
         if (arguments.length === 3 && typeof obj === "function") {
-            msg = prop;
+            msg162 = prop;
             prop = null;
         }
-        return new Assertion2(fn, msg, assert2.doesNotIncrease, true).to.not.increase(obj, prop);
+        return new Assertion2(fn, msg162, assert2.doesNotIncrease, true).to.not.increase(obj, prop);
     };
-    assert2.increasesButNotBy = function(fn, obj, prop, delta, msg) {
+    assert2.increasesButNotBy = function(fn, obj, prop, delta, msg163) {
         if (arguments.length === 4 && typeof obj === "function") {
             var tmpMsg = delta;
             delta = prop;
-            msg = tmpMsg;
+            msg163 = tmpMsg;
         } else if (arguments.length === 3) {
             delta = prop;
             prop = null;
         }
-        new Assertion2(fn, msg, assert2.increasesButNotBy, true).to.increase(obj, prop).but.not.by(delta);
+        new Assertion2(fn, msg163, assert2.increasesButNotBy, true).to.increase(obj, prop).but.not.by(delta);
     };
-    assert2.decreases = function(fn, obj, prop, msg) {
+    assert2.decreases = function(fn, obj, prop, msg164) {
         if (arguments.length === 3 && typeof obj === "function") {
-            msg = prop;
+            msg164 = prop;
             prop = null;
         }
-        return new Assertion2(fn, msg, assert2.decreases, true).to.decrease(obj, prop);
+        return new Assertion2(fn, msg164, assert2.decreases, true).to.decrease(obj, prop);
     };
-    assert2.decreasesBy = function(fn, obj, prop, delta, msg) {
+    assert2.decreasesBy = function(fn, obj, prop, delta, msg165) {
         if (arguments.length === 4 && typeof obj === "function") {
             var tmpMsg = delta;
             delta = prop;
-            msg = tmpMsg;
+            msg165 = tmpMsg;
         } else if (arguments.length === 3) {
             delta = prop;
             prop = null;
         }
-        new Assertion2(fn, msg, assert2.decreasesBy, true).to.decrease(obj, prop).by(delta);
+        new Assertion2(fn, msg165, assert2.decreasesBy, true).to.decrease(obj, prop).by(delta);
     };
-    assert2.doesNotDecrease = function(fn, obj, prop, msg) {
+    assert2.doesNotDecrease = function(fn, obj, prop, msg166) {
         if (arguments.length === 3 && typeof obj === "function") {
-            msg = prop;
+            msg166 = prop;
             prop = null;
         }
-        return new Assertion2(fn, msg, assert2.doesNotDecrease, true).to.not.decrease(obj, prop);
+        return new Assertion2(fn, msg166, assert2.doesNotDecrease, true).to.not.decrease(obj, prop);
     };
-    assert2.doesNotDecreaseBy = function(fn, obj, prop, delta, msg) {
+    assert2.doesNotDecreaseBy = function(fn, obj, prop, delta, msg167) {
         if (arguments.length === 4 && typeof obj === "function") {
             var tmpMsg = delta;
             delta = prop;
-            msg = tmpMsg;
+            msg167 = tmpMsg;
         } else if (arguments.length === 3) {
             delta = prop;
             prop = null;
         }
-        return new Assertion2(fn, msg, assert2.doesNotDecreaseBy, true).to.not.decrease(obj, prop).by(delta);
+        return new Assertion2(fn, msg167, assert2.doesNotDecreaseBy, true).to.not.decrease(obj, prop).by(delta);
     };
-    assert2.decreasesButNotBy = function(fn, obj, prop, delta, msg) {
+    assert2.decreasesButNotBy = function(fn, obj, prop, delta, msg168) {
         if (arguments.length === 4 && typeof obj === "function") {
             var tmpMsg = delta;
             delta = prop;
-            msg = tmpMsg;
+            msg168 = tmpMsg;
         } else if (arguments.length === 3) {
             delta = prop;
             prop = null;
         }
-        new Assertion2(fn, msg, assert2.decreasesButNotBy, true).to.decrease(obj, prop).but.not.by(delta);
+        new Assertion2(fn, msg168, assert2.decreasesButNotBy, true).to.decrease(obj, prop).but.not.by(delta);
     };
     assert2.ifError = function(val) {
         if (val) {
             throw val;
         }
     };
-    assert2.isExtensible = function(obj, msg) {
-        new Assertion2(obj, msg, assert2.isExtensible, true).to.be.extensible;
+    assert2.isExtensible = function(obj, msg169) {
+        new Assertion2(obj, msg169, assert2.isExtensible, true).to.be.extensible;
     };
-    assert2.isNotExtensible = function(obj, msg) {
-        new Assertion2(obj, msg, assert2.isNotExtensible, true).to.not.be.extensible;
+    assert2.isNotExtensible = function(obj, msg170) {
+        new Assertion2(obj, msg170, assert2.isNotExtensible, true).to.not.be.extensible;
     };
-    assert2.isSealed = function(obj, msg) {
-        new Assertion2(obj, msg, assert2.isSealed, true).to.be.sealed;
+    assert2.isSealed = function(obj, msg171) {
+        new Assertion2(obj, msg171, assert2.isSealed, true).to.be.sealed;
     };
-    assert2.isNotSealed = function(obj, msg) {
-        new Assertion2(obj, msg, assert2.isNotSealed, true).to.not.be.sealed;
+    assert2.isNotSealed = function(obj, msg172) {
+        new Assertion2(obj, msg172, assert2.isNotSealed, true).to.not.be.sealed;
     };
-    assert2.isFrozen = function(obj, msg) {
-        new Assertion2(obj, msg, assert2.isFrozen, true).to.be.frozen;
+    assert2.isFrozen = function(obj, msg173) {
+        new Assertion2(obj, msg173, assert2.isFrozen, true).to.be.frozen;
     };
-    assert2.isNotFrozen = function(obj, msg) {
-        new Assertion2(obj, msg, assert2.isNotFrozen, true).to.not.be.frozen;
+    assert2.isNotFrozen = function(obj, msg174) {
+        new Assertion2(obj, msg174, assert2.isNotFrozen, true).to.not.be.frozen;
     };
-    assert2.isEmpty = function(val, msg) {
-        new Assertion2(val, msg, assert2.isEmpty, true).to.be.empty;
+    assert2.isEmpty = function(val, msg175) {
+        new Assertion2(val, msg175, assert2.isEmpty, true).to.be.empty;
     };
-    assert2.isNotEmpty = function(val, msg) {
-        new Assertion2(val, msg, assert2.isNotEmpty, true).to.not.be.empty;
+    assert2.isNotEmpty = function(val, msg176) {
+        new Assertion2(val, msg176, assert2.isNotEmpty, true).to.not.be.empty;
     };
     (function alias(name, as) {
         assert2[as] = assert2[name];
@@ -3792,9 +4054,9 @@ const osType = (()=>{
 })();
 const isWindows = osType === "windows";
 const CHAR_FORWARD_SLASH = 47;
-function assertPath(path10) {
-    if (typeof path10 !== "string") {
-        throw new TypeError(`Path must be a string. Received ${JSON.stringify(path10)}`);
+function assertPath(path11) {
+    if (typeof path11 !== "string") {
+        throw new TypeError(`Path must be a string. Received ${JSON.stringify(path11)}`);
     }
 }
 function isPosixPathSeparator(code2) {
@@ -3806,14 +4068,14 @@ function isPathSeparator(code3) {
 function isWindowsDeviceRoot(code4) {
     return code4 >= 97 && code4 <= 122 || code4 >= 65 && code4 <= 90;
 }
-function normalizeString(path11, allowAboveRoot, separator, isPathSeparator1) {
+function normalizeString(path12, allowAboveRoot, separator, isPathSeparator1) {
     let res = "";
     let lastSegmentLength = 0;
     let lastSlash = -1;
     let dots = 0;
     let code5;
-    for(let i = 0, len = path11.length; i <= len; ++i){
-        if (i < len) code5 = path11.charCodeAt(i);
+    for(let i = 0, len = path12.length; i <= len; ++i){
+        if (i < len) code5 = path12.charCodeAt(i);
         else if (isPathSeparator1(code5)) break;
         else code5 = CHAR_FORWARD_SLASH;
         if (isPathSeparator1(code5)) {
@@ -3845,8 +4107,8 @@ function normalizeString(path11, allowAboveRoot, separator, isPathSeparator1) {
                     lastSegmentLength = 2;
                 }
             } else {
-                if (res.length > 0) res += separator + path11.slice(lastSlash + 1, i);
-                else res = path11.slice(lastSlash + 1, i);
+                if (res.length > 0) res += separator + path12.slice(lastSlash + 1, i);
+                else res = path12.slice(lastSlash + 1, i);
                 lastSegmentLength = i - lastSlash - 1;
             }
             lastSlash = i;
@@ -3879,6 +4141,17 @@ function encodeWhitespace(string) {
         return WHITESPACE_ENCODINGS[c] ?? c;
     });
 }
+class DenoStdInternalError1 extends Error {
+    constructor(message){
+        super(message);
+        this.name = "DenoStdInternalError";
+    }
+}
+function assert2(expr, msg177 = "") {
+    if (!expr) {
+        throw new DenoStdInternalError1(msg177);
+    }
+}
 const sep = "\\";
 const delimiter = ";";
 function resolve(...pathSegments) {
@@ -3886,56 +4159,56 @@ function resolve(...pathSegments) {
     let resolvedTail = "";
     let resolvedAbsolute = false;
     for(let i = pathSegments.length - 1; i >= -1; i--){
-        let path12;
+        let path13;
         const { Deno  } = globalThis;
         if (i >= 0) {
-            path12 = pathSegments[i];
+            path13 = pathSegments[i];
         } else if (!resolvedDevice) {
             if (typeof Deno?.cwd !== "function") {
                 throw new TypeError("Resolved a drive-letter-less path without a CWD.");
             }
-            path12 = Deno.cwd();
+            path13 = Deno.cwd();
         } else {
             if (typeof Deno?.env?.get !== "function" || typeof Deno?.cwd !== "function") {
                 throw new TypeError("Resolved a relative path without a CWD.");
             }
-            path12 = Deno.cwd();
-            if (path12 === undefined || path12.slice(0, 3).toLowerCase() !== `${resolvedDevice.toLowerCase()}\\`) {
-                path12 = `${resolvedDevice}\\`;
+            path13 = Deno.cwd();
+            if (path13 === undefined || path13.slice(0, 3).toLowerCase() !== `${resolvedDevice.toLowerCase()}\\`) {
+                path13 = `${resolvedDevice}\\`;
             }
         }
-        assertPath(path12);
-        const len = path12.length;
+        assertPath(path13);
+        const len = path13.length;
         if (len === 0) continue;
         let rootEnd = 0;
         let device = "";
         let isAbsolute1 = false;
-        const code6 = path12.charCodeAt(0);
+        const code6 = path13.charCodeAt(0);
         if (len > 1) {
             if (isPathSeparator(code6)) {
                 isAbsolute1 = true;
-                if (isPathSeparator(path12.charCodeAt(1))) {
+                if (isPathSeparator(path13.charCodeAt(1))) {
                     let j = 2;
                     let last = j;
                     for(; j < len; ++j){
-                        if (isPathSeparator(path12.charCodeAt(j))) break;
+                        if (isPathSeparator(path13.charCodeAt(j))) break;
                     }
                     if (j < len && j !== last) {
-                        const firstPart = path12.slice(last, j);
+                        const firstPart = path13.slice(last, j);
                         last = j;
                         for(; j < len; ++j){
-                            if (!isPathSeparator(path12.charCodeAt(j))) break;
+                            if (!isPathSeparator(path13.charCodeAt(j))) break;
                         }
                         if (j < len && j !== last) {
                             last = j;
                             for(; j < len; ++j){
-                                if (isPathSeparator(path12.charCodeAt(j))) break;
+                                if (isPathSeparator(path13.charCodeAt(j))) break;
                             }
                             if (j === len) {
-                                device = `\\\\${firstPart}\\${path12.slice(last)}`;
+                                device = `\\\\${firstPart}\\${path13.slice(last)}`;
                                 rootEnd = j;
                             } else if (j !== last) {
-                                device = `\\\\${firstPart}\\${path12.slice(last, j)}`;
+                                device = `\\\\${firstPart}\\${path13.slice(last, j)}`;
                                 rootEnd = j;
                             }
                         }
@@ -3944,11 +4217,11 @@ function resolve(...pathSegments) {
                     rootEnd = 1;
                 }
             } else if (isWindowsDeviceRoot(code6)) {
-                if (path12.charCodeAt(1) === 58) {
-                    device = path12.slice(0, 2);
+                if (path13.charCodeAt(1) === 58) {
+                    device = path13.slice(0, 2);
                     rootEnd = 2;
                     if (len > 2) {
-                        if (isPathSeparator(path12.charCodeAt(2))) {
+                        if (isPathSeparator(path13.charCodeAt(2))) {
                             isAbsolute1 = true;
                             rootEnd = 3;
                         }
@@ -3966,7 +4239,7 @@ function resolve(...pathSegments) {
             resolvedDevice = device;
         }
         if (!resolvedAbsolute) {
-            resolvedTail = `${path12.slice(rootEnd)}\\${resolvedTail}`;
+            resolvedTail = `${path13.slice(rootEnd)}\\${resolvedTail}`;
             resolvedAbsolute = isAbsolute1;
         }
         if (resolvedAbsolute && resolvedDevice.length > 0) break;
@@ -3974,38 +4247,38 @@ function resolve(...pathSegments) {
     resolvedTail = normalizeString(resolvedTail, !resolvedAbsolute, "\\", isPathSeparator);
     return resolvedDevice + (resolvedAbsolute ? "\\" : "") + resolvedTail || ".";
 }
-function normalize(path13) {
-    assertPath(path13);
-    const len = path13.length;
+function normalize(path14) {
+    assertPath(path14);
+    const len = path14.length;
     if (len === 0) return ".";
     let rootEnd = 0;
     let device;
     let isAbsolute2 = false;
-    const code7 = path13.charCodeAt(0);
+    const code7 = path14.charCodeAt(0);
     if (len > 1) {
         if (isPathSeparator(code7)) {
             isAbsolute2 = true;
-            if (isPathSeparator(path13.charCodeAt(1))) {
+            if (isPathSeparator(path14.charCodeAt(1))) {
                 let j = 2;
                 let last = j;
                 for(; j < len; ++j){
-                    if (isPathSeparator(path13.charCodeAt(j))) break;
+                    if (isPathSeparator(path14.charCodeAt(j))) break;
                 }
                 if (j < len && j !== last) {
-                    const firstPart = path13.slice(last, j);
+                    const firstPart = path14.slice(last, j);
                     last = j;
                     for(; j < len; ++j){
-                        if (!isPathSeparator(path13.charCodeAt(j))) break;
+                        if (!isPathSeparator(path14.charCodeAt(j))) break;
                     }
                     if (j < len && j !== last) {
                         last = j;
                         for(; j < len; ++j){
-                            if (isPathSeparator(path13.charCodeAt(j))) break;
+                            if (isPathSeparator(path14.charCodeAt(j))) break;
                         }
                         if (j === len) {
-                            return `\\\\${firstPart}\\${path13.slice(last)}\\`;
+                            return `\\\\${firstPart}\\${path14.slice(last)}\\`;
                         } else if (j !== last) {
-                            device = `\\\\${firstPart}\\${path13.slice(last, j)}`;
+                            device = `\\\\${firstPart}\\${path14.slice(last, j)}`;
                             rootEnd = j;
                         }
                     }
@@ -4014,11 +4287,11 @@ function normalize(path13) {
                 rootEnd = 1;
             }
         } else if (isWindowsDeviceRoot(code7)) {
-            if (path13.charCodeAt(1) === 58) {
-                device = path13.slice(0, 2);
+            if (path14.charCodeAt(1) === 58) {
+                device = path14.slice(0, 2);
                 rootEnd = 2;
                 if (len > 2) {
-                    if (isPathSeparator(path13.charCodeAt(2))) {
+                    if (isPathSeparator(path14.charCodeAt(2))) {
                         isAbsolute2 = true;
                         rootEnd = 3;
                     }
@@ -4030,12 +4303,12 @@ function normalize(path13) {
     }
     let tail;
     if (rootEnd < len) {
-        tail = normalizeString(path13.slice(rootEnd), !isAbsolute2, "\\", isPathSeparator);
+        tail = normalizeString(path14.slice(rootEnd), !isAbsolute2, "\\", isPathSeparator);
     } else {
         tail = "";
     }
     if (tail.length === 0 && !isAbsolute2) tail = ".";
-    if (tail.length > 0 && isPathSeparator(path13.charCodeAt(len - 1))) {
+    if (tail.length > 0 && isPathSeparator(path14.charCodeAt(len - 1))) {
         tail += "\\";
     }
     if (device === undefined) {
@@ -4056,16 +4329,16 @@ function normalize(path13) {
         return device;
     }
 }
-function isAbsolute(path14) {
-    assertPath(path14);
-    const len = path14.length;
+function isAbsolute(path15) {
+    assertPath(path15);
+    const len = path15.length;
     if (len === 0) return false;
-    const code8 = path14.charCodeAt(0);
+    const code8 = path15.charCodeAt(0);
     if (isPathSeparator(code8)) {
         return true;
     } else if (isWindowsDeviceRoot(code8)) {
-        if (len > 2 && path14.charCodeAt(1) === 58) {
-            if (isPathSeparator(path14.charCodeAt(2))) return true;
+        if (len > 2 && path15.charCodeAt(1) === 58) {
+            if (isPathSeparator(path15.charCodeAt(2))) return true;
         }
     }
     return false;
@@ -4076,17 +4349,17 @@ function join(...paths) {
     let joined;
     let firstPart = null;
     for(let i = 0; i < pathsCount; ++i){
-        const path15 = paths[i];
-        assertPath(path15);
-        if (path15.length > 0) {
-            if (joined === undefined) joined = firstPart = path15;
-            else joined += `\\${path15}`;
+        const path16 = paths[i];
+        assertPath(path16);
+        if (path16.length > 0) {
+            if (joined === undefined) joined = firstPart = path16;
+            else joined += `\\${path16}`;
         }
     }
     if (joined === undefined) return ".";
     let needsReplace = true;
     let slashCount = 0;
-    assert(firstPart != null);
+    assert2(firstPart != null);
     if (isPathSeparator(firstPart.charCodeAt(0))) {
         ++slashCount;
         const firstLen = firstPart.length;
@@ -4183,10 +4456,10 @@ function relative(from, to) {
         return toOrig.slice(toStart, toEnd);
     }
 }
-function toNamespacedPath(path16) {
-    if (typeof path16 !== "string") return path16;
-    if (path16.length === 0) return "";
-    const resolvedPath = resolve(path16);
+function toNamespacedPath(path17) {
+    if (typeof path17 !== "string") return path17;
+    if (path17.length === 0) return "";
+    const resolvedPath = resolve(path17);
     if (resolvedPath.length >= 3) {
         if (resolvedPath.charCodeAt(0) === 92) {
             if (resolvedPath.charCodeAt(1) === 92) {
@@ -4201,38 +4474,38 @@ function toNamespacedPath(path16) {
             }
         }
     }
-    return path16;
+    return path17;
 }
-function dirname(path17) {
-    assertPath(path17);
-    const len = path17.length;
+function dirname(path18) {
+    assertPath(path18);
+    const len = path18.length;
     if (len === 0) return ".";
     let rootEnd = -1;
     let end = -1;
     let matchedSlash = true;
     let offset = 0;
-    const code10 = path17.charCodeAt(0);
+    const code10 = path18.charCodeAt(0);
     if (len > 1) {
         if (isPathSeparator(code10)) {
             rootEnd = offset = 1;
-            if (isPathSeparator(path17.charCodeAt(1))) {
+            if (isPathSeparator(path18.charCodeAt(1))) {
                 let j = 2;
                 let last = j;
                 for(; j < len; ++j){
-                    if (isPathSeparator(path17.charCodeAt(j))) break;
+                    if (isPathSeparator(path18.charCodeAt(j))) break;
                 }
                 if (j < len && j !== last) {
                     last = j;
                     for(; j < len; ++j){
-                        if (!isPathSeparator(path17.charCodeAt(j))) break;
+                        if (!isPathSeparator(path18.charCodeAt(j))) break;
                     }
                     if (j < len && j !== last) {
                         last = j;
                         for(; j < len; ++j){
-                            if (isPathSeparator(path17.charCodeAt(j))) break;
+                            if (isPathSeparator(path18.charCodeAt(j))) break;
                         }
                         if (j === len) {
-                            return path17;
+                            return path18;
                         }
                         if (j !== last) {
                             rootEnd = offset = j + 1;
@@ -4241,18 +4514,18 @@ function dirname(path17) {
                 }
             }
         } else if (isWindowsDeviceRoot(code10)) {
-            if (path17.charCodeAt(1) === 58) {
+            if (path18.charCodeAt(1) === 58) {
                 rootEnd = offset = 2;
                 if (len > 2) {
-                    if (isPathSeparator(path17.charCodeAt(2))) rootEnd = offset = 3;
+                    if (isPathSeparator(path18.charCodeAt(2))) rootEnd = offset = 3;
                 }
             }
         }
     } else if (isPathSeparator(code10)) {
-        return path17;
+        return path18;
     }
     for(let i = len - 1; i >= offset; --i){
-        if (isPathSeparator(path17.charCodeAt(i))) {
+        if (isPathSeparator(path18.charCodeAt(i))) {
             if (!matchedSlash) {
                 end = i;
                 break;
@@ -4265,29 +4538,29 @@ function dirname(path17) {
         if (rootEnd === -1) return ".";
         else end = rootEnd;
     }
-    return path17.slice(0, end);
+    return path18.slice(0, end);
 }
-function basename(path18, ext = "") {
+function basename(path19, ext = "") {
     if (ext !== undefined && typeof ext !== "string") {
         throw new TypeError('"ext" argument must be a string');
     }
-    assertPath(path18);
+    assertPath(path19);
     let start = 0;
     let end = -1;
     let matchedSlash = true;
     let i;
-    if (path18.length >= 2) {
-        const drive = path18.charCodeAt(0);
+    if (path19.length >= 2) {
+        const drive = path19.charCodeAt(0);
         if (isWindowsDeviceRoot(drive)) {
-            if (path18.charCodeAt(1) === 58) start = 2;
+            if (path19.charCodeAt(1) === 58) start = 2;
         }
     }
-    if (ext !== undefined && ext.length > 0 && ext.length <= path18.length) {
-        if (ext.length === path18.length && ext === path18) return "";
+    if (ext !== undefined && ext.length > 0 && ext.length <= path19.length) {
+        if (ext.length === path19.length && ext === path19) return "";
         let extIdx = ext.length - 1;
         let firstNonSlashEnd = -1;
-        for(i = path18.length - 1; i >= start; --i){
-            const code11 = path18.charCodeAt(i);
+        for(i = path19.length - 1; i >= start; --i){
+            const code11 = path19.charCodeAt(i);
             if (isPathSeparator(code11)) {
                 if (!matchedSlash) {
                     start = i + 1;
@@ -4311,11 +4584,11 @@ function basename(path18, ext = "") {
             }
         }
         if (start === end) end = firstNonSlashEnd;
-        else if (end === -1) end = path18.length;
-        return path18.slice(start, end);
+        else if (end === -1) end = path19.length;
+        return path19.slice(start, end);
     } else {
-        for(i = path18.length - 1; i >= start; --i){
-            if (isPathSeparator(path18.charCodeAt(i))) {
+        for(i = path19.length - 1; i >= start; --i){
+            if (isPathSeparator(path19.charCodeAt(i))) {
                 if (!matchedSlash) {
                     start = i + 1;
                     break;
@@ -4326,22 +4599,22 @@ function basename(path18, ext = "") {
             }
         }
         if (end === -1) return "";
-        return path18.slice(start, end);
+        return path19.slice(start, end);
     }
 }
-function extname(path19) {
-    assertPath(path19);
+function extname(path20) {
+    assertPath(path20);
     let start = 0;
     let startDot = -1;
     let startPart = 0;
     let end = -1;
     let matchedSlash = true;
     let preDotState = 0;
-    if (path19.length >= 2 && path19.charCodeAt(1) === 58 && isWindowsDeviceRoot(path19.charCodeAt(0))) {
+    if (path20.length >= 2 && path20.charCodeAt(1) === 58 && isWindowsDeviceRoot(path20.charCodeAt(0))) {
         start = startPart = 2;
     }
-    for(let i = path19.length - 1; i >= start; --i){
-        const code12 = path19.charCodeAt(i);
+    for(let i = path20.length - 1; i >= start; --i){
+        const code12 = path20.charCodeAt(i);
         if (isPathSeparator(code12)) {
             if (!matchedSlash) {
                 startPart = i + 1;
@@ -4363,7 +4636,7 @@ function extname(path19) {
     if (startDot === -1 || end === -1 || preDotState === 0 || preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
         return "";
     }
-    return path19.slice(startDot, end);
+    return path20.slice(startDot, end);
 }
 function format(pathObject) {
     if (pathObject === null || typeof pathObject !== "object") {
@@ -4371,8 +4644,8 @@ function format(pathObject) {
     }
     return _format("\\", pathObject);
 }
-function parse1(path20) {
-    assertPath(path20);
+function parse2(path21) {
+    assertPath(path21);
     const ret = {
         root: "",
         dir: "",
@@ -4380,28 +4653,28 @@ function parse1(path20) {
         ext: "",
         name: ""
     };
-    const len = path20.length;
+    const len = path21.length;
     if (len === 0) return ret;
     let rootEnd = 0;
-    let code13 = path20.charCodeAt(0);
+    let code13 = path21.charCodeAt(0);
     if (len > 1) {
         if (isPathSeparator(code13)) {
             rootEnd = 1;
-            if (isPathSeparator(path20.charCodeAt(1))) {
+            if (isPathSeparator(path21.charCodeAt(1))) {
                 let j = 2;
                 let last = j;
                 for(; j < len; ++j){
-                    if (isPathSeparator(path20.charCodeAt(j))) break;
+                    if (isPathSeparator(path21.charCodeAt(j))) break;
                 }
                 if (j < len && j !== last) {
                     last = j;
                     for(; j < len; ++j){
-                        if (!isPathSeparator(path20.charCodeAt(j))) break;
+                        if (!isPathSeparator(path21.charCodeAt(j))) break;
                     }
                     if (j < len && j !== last) {
                         last = j;
                         for(; j < len; ++j){
-                            if (isPathSeparator(path20.charCodeAt(j))) break;
+                            if (isPathSeparator(path21.charCodeAt(j))) break;
                         }
                         if (j === len) {
                             rootEnd = j;
@@ -4412,35 +4685,35 @@ function parse1(path20) {
                 }
             }
         } else if (isWindowsDeviceRoot(code13)) {
-            if (path20.charCodeAt(1) === 58) {
+            if (path21.charCodeAt(1) === 58) {
                 rootEnd = 2;
                 if (len > 2) {
-                    if (isPathSeparator(path20.charCodeAt(2))) {
+                    if (isPathSeparator(path21.charCodeAt(2))) {
                         if (len === 3) {
-                            ret.root = ret.dir = path20;
+                            ret.root = ret.dir = path21;
                             return ret;
                         }
                         rootEnd = 3;
                     }
                 } else {
-                    ret.root = ret.dir = path20;
+                    ret.root = ret.dir = path21;
                     return ret;
                 }
             }
         }
     } else if (isPathSeparator(code13)) {
-        ret.root = ret.dir = path20;
+        ret.root = ret.dir = path21;
         return ret;
     }
-    if (rootEnd > 0) ret.root = path20.slice(0, rootEnd);
+    if (rootEnd > 0) ret.root = path21.slice(0, rootEnd);
     let startDot = -1;
     let startPart = rootEnd;
     let end = -1;
     let matchedSlash = true;
-    let i = path20.length - 1;
+    let i = path21.length - 1;
     let preDotState = 0;
     for(; i >= rootEnd; --i){
-        code13 = path20.charCodeAt(i);
+        code13 = path21.charCodeAt(i);
         if (isPathSeparator(code13)) {
             if (!matchedSlash) {
                 startPart = i + 1;
@@ -4461,15 +4734,15 @@ function parse1(path20) {
     }
     if (startDot === -1 || end === -1 || preDotState === 0 || preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
         if (end !== -1) {
-            ret.base = ret.name = path20.slice(startPart, end);
+            ret.base = ret.name = path21.slice(startPart, end);
         }
     } else {
-        ret.name = path20.slice(startPart, startDot);
-        ret.base = path20.slice(startPart, end);
-        ret.ext = path20.slice(startDot, end);
+        ret.name = path21.slice(startPart, startDot);
+        ret.base = path21.slice(startPart, end);
+        ret.ext = path21.slice(startDot, end);
     }
     if (startPart > 0 && startPart !== rootEnd) {
-        ret.dir = path20.slice(0, startPart - 1);
+        ret.dir = path21.slice(0, startPart - 1);
     } else ret.dir = ret.root;
     return ret;
 }
@@ -4478,17 +4751,17 @@ function fromFileUrl(url) {
     if (url.protocol != "file:") {
         throw new TypeError("Must be a file URL.");
     }
-    let path21 = decodeURIComponent(url.pathname.replace(/\//g, "\\").replace(/%(?![0-9A-Fa-f]{2})/g, "%25")).replace(/^\\*([A-Za-z]:)(\\|$)/, "$1\\");
+    let path22 = decodeURIComponent(url.pathname.replace(/\//g, "\\").replace(/%(?![0-9A-Fa-f]{2})/g, "%25")).replace(/^\\*([A-Za-z]:)(\\|$)/, "$1\\");
     if (url.hostname != "") {
-        path21 = `\\\\${url.hostname}${path21}`;
+        path22 = `\\\\${url.hostname}${path22}`;
     }
-    return path21;
+    return path22;
 }
-function toFileUrl(path22) {
-    if (!isAbsolute(path22)) {
+function toFileUrl(path23) {
+    if (!isAbsolute(path23)) {
         throw new TypeError("Must be an absolute path.");
     }
-    const [, hostname, pathname] = path22.match(/^(?:[/\\]{2}([^/\\]+)(?=[/\\](?:[^/\\]|$)))?(.*)/);
+    const [, hostname, pathname] = path23.match(/^(?:[/\\]{2}([^/\\]+)(?=[/\\](?:[^/\\]|$)))?(.*)/);
     const url = new URL("file:///");
     url.pathname = encodeWhitespace(pathname.replace(/%/g, "%25"));
     if (hostname != null && hostname != "localhost") {
@@ -4512,7 +4785,7 @@ const mod = {
     basename: basename,
     extname: extname,
     format: format,
-    parse: parse1,
+    parse: parse2,
     fromFileUrl: fromFileUrl,
     toFileUrl: toFileUrl
 };
@@ -4522,21 +4795,21 @@ function resolve1(...pathSegments) {
     let resolvedPath = "";
     let resolvedAbsolute = false;
     for(let i = pathSegments.length - 1; i >= -1 && !resolvedAbsolute; i--){
-        let path23;
-        if (i >= 0) path23 = pathSegments[i];
+        let path24;
+        if (i >= 0) path24 = pathSegments[i];
         else {
             const { Deno  } = globalThis;
             if (typeof Deno?.cwd !== "function") {
                 throw new TypeError("Resolved a relative path without a CWD.");
             }
-            path23 = Deno.cwd();
+            path24 = Deno.cwd();
         }
-        assertPath(path23);
-        if (path23.length === 0) {
+        assertPath(path24);
+        if (path24.length === 0) {
             continue;
         }
-        resolvedPath = `${path23}/${resolvedPath}`;
-        resolvedAbsolute = path23.charCodeAt(0) === CHAR_FORWARD_SLASH;
+        resolvedPath = `${path24}/${resolvedPath}`;
+        resolvedAbsolute = path24.charCodeAt(0) === CHAR_FORWARD_SLASH;
     }
     resolvedPath = normalizeString(resolvedPath, !resolvedAbsolute, "/", isPosixPathSeparator);
     if (resolvedAbsolute) {
@@ -4545,30 +4818,30 @@ function resolve1(...pathSegments) {
     } else if (resolvedPath.length > 0) return resolvedPath;
     else return ".";
 }
-function normalize1(path24) {
-    assertPath(path24);
-    if (path24.length === 0) return ".";
-    const isAbsolute1 = path24.charCodeAt(0) === 47;
-    const trailingSeparator = path24.charCodeAt(path24.length - 1) === 47;
-    path24 = normalizeString(path24, !isAbsolute1, "/", isPosixPathSeparator);
-    if (path24.length === 0 && !isAbsolute1) path24 = ".";
-    if (path24.length > 0 && trailingSeparator) path24 += "/";
-    if (isAbsolute1) return `/${path24}`;
-    return path24;
-}
-function isAbsolute1(path25) {
+function normalize1(path25) {
     assertPath(path25);
-    return path25.length > 0 && path25.charCodeAt(0) === 47;
+    if (path25.length === 0) return ".";
+    const isAbsolute1 = path25.charCodeAt(0) === 47;
+    const trailingSeparator = path25.charCodeAt(path25.length - 1) === 47;
+    path25 = normalizeString(path25, !isAbsolute1, "/", isPosixPathSeparator);
+    if (path25.length === 0 && !isAbsolute1) path25 = ".";
+    if (path25.length > 0 && trailingSeparator) path25 += "/";
+    if (isAbsolute1) return `/${path25}`;
+    return path25;
+}
+function isAbsolute1(path26) {
+    assertPath(path26);
+    return path26.length > 0 && path26.charCodeAt(0) === 47;
 }
 function join1(...paths) {
     if (paths.length === 0) return ".";
     let joined;
     for(let i = 0, len = paths.length; i < len; ++i){
-        const path26 = paths[i];
-        assertPath(path26);
-        if (path26.length > 0) {
-            if (!joined) joined = path26;
-            else joined += `/${path26}`;
+        const path27 = paths[i];
+        assertPath(path27);
+        if (path27.length > 0) {
+            if (!joined) joined = path27;
+            else joined += `/${path27}`;
         }
     }
     if (!joined) return ".";
@@ -4632,17 +4905,17 @@ function relative1(from, to) {
         return to.slice(toStart);
     }
 }
-function toNamespacedPath1(path27) {
-    return path27;
+function toNamespacedPath1(path28) {
+    return path28;
 }
-function dirname1(path28) {
-    assertPath(path28);
-    if (path28.length === 0) return ".";
-    const hasRoot = path28.charCodeAt(0) === 47;
+function dirname1(path29) {
+    assertPath(path29);
+    if (path29.length === 0) return ".";
+    const hasRoot = path29.charCodeAt(0) === 47;
     let end = -1;
     let matchedSlash = true;
-    for(let i = path28.length - 1; i >= 1; --i){
-        if (path28.charCodeAt(i) === 47) {
+    for(let i = path29.length - 1; i >= 1; --i){
+        if (path29.charCodeAt(i) === 47) {
             if (!matchedSlash) {
                 end = i;
                 break;
@@ -4653,23 +4926,23 @@ function dirname1(path28) {
     }
     if (end === -1) return hasRoot ? "/" : ".";
     if (hasRoot && end === 1) return "//";
-    return path28.slice(0, end);
+    return path29.slice(0, end);
 }
-function basename1(path29, ext = "") {
+function basename1(path30, ext = "") {
     if (ext !== undefined && typeof ext !== "string") {
         throw new TypeError('"ext" argument must be a string');
     }
-    assertPath(path29);
+    assertPath(path30);
     let start = 0;
     let end = -1;
     let matchedSlash = true;
     let i;
-    if (ext !== undefined && ext.length > 0 && ext.length <= path29.length) {
-        if (ext.length === path29.length && ext === path29) return "";
+    if (ext !== undefined && ext.length > 0 && ext.length <= path30.length) {
+        if (ext.length === path30.length && ext === path30) return "";
         let extIdx = ext.length - 1;
         let firstNonSlashEnd = -1;
-        for(i = path29.length - 1; i >= 0; --i){
-            const code14 = path29.charCodeAt(i);
+        for(i = path30.length - 1; i >= 0; --i){
+            const code14 = path30.charCodeAt(i);
             if (code14 === 47) {
                 if (!matchedSlash) {
                     start = i + 1;
@@ -4693,11 +4966,11 @@ function basename1(path29, ext = "") {
             }
         }
         if (start === end) end = firstNonSlashEnd;
-        else if (end === -1) end = path29.length;
-        return path29.slice(start, end);
+        else if (end === -1) end = path30.length;
+        return path30.slice(start, end);
     } else {
-        for(i = path29.length - 1; i >= 0; --i){
-            if (path29.charCodeAt(i) === 47) {
+        for(i = path30.length - 1; i >= 0; --i){
+            if (path30.charCodeAt(i) === 47) {
                 if (!matchedSlash) {
                     start = i + 1;
                     break;
@@ -4708,18 +4981,18 @@ function basename1(path29, ext = "") {
             }
         }
         if (end === -1) return "";
-        return path29.slice(start, end);
+        return path30.slice(start, end);
     }
 }
-function extname1(path30) {
-    assertPath(path30);
+function extname1(path31) {
+    assertPath(path31);
     let startDot = -1;
     let startPart = 0;
     let end = -1;
     let matchedSlash = true;
     let preDotState = 0;
-    for(let i = path30.length - 1; i >= 0; --i){
-        const code15 = path30.charCodeAt(i);
+    for(let i = path31.length - 1; i >= 0; --i){
+        const code15 = path31.charCodeAt(i);
         if (code15 === 47) {
             if (!matchedSlash) {
                 startPart = i + 1;
@@ -4741,7 +5014,7 @@ function extname1(path30) {
     if (startDot === -1 || end === -1 || preDotState === 0 || preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
         return "";
     }
-    return path30.slice(startDot, end);
+    return path31.slice(startDot, end);
 }
 function format1(pathObject) {
     if (pathObject === null || typeof pathObject !== "object") {
@@ -4749,8 +5022,8 @@ function format1(pathObject) {
     }
     return _format("/", pathObject);
 }
-function parse2(path31) {
-    assertPath(path31);
+function parse3(path32) {
+    assertPath(path32);
     const ret = {
         root: "",
         dir: "",
@@ -4758,8 +5031,8 @@ function parse2(path31) {
         ext: "",
         name: ""
     };
-    if (path31.length === 0) return ret;
-    const isAbsolute2 = path31.charCodeAt(0) === 47;
+    if (path32.length === 0) return ret;
+    const isAbsolute2 = path32.charCodeAt(0) === 47;
     let start;
     if (isAbsolute2) {
         ret.root = "/";
@@ -4771,10 +5044,10 @@ function parse2(path31) {
     let startPart = 0;
     let end = -1;
     let matchedSlash = true;
-    let i = path31.length - 1;
+    let i = path32.length - 1;
     let preDotState = 0;
     for(; i >= start; --i){
-        const code16 = path31.charCodeAt(i);
+        const code16 = path32.charCodeAt(i);
         if (code16 === 47) {
             if (!matchedSlash) {
                 startPart = i + 1;
@@ -4796,22 +5069,22 @@ function parse2(path31) {
     if (startDot === -1 || end === -1 || preDotState === 0 || preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
         if (end !== -1) {
             if (startPart === 0 && isAbsolute2) {
-                ret.base = ret.name = path31.slice(1, end);
+                ret.base = ret.name = path32.slice(1, end);
             } else {
-                ret.base = ret.name = path31.slice(startPart, end);
+                ret.base = ret.name = path32.slice(startPart, end);
             }
         }
     } else {
         if (startPart === 0 && isAbsolute2) {
-            ret.name = path31.slice(1, startDot);
-            ret.base = path31.slice(1, end);
+            ret.name = path32.slice(1, startDot);
+            ret.base = path32.slice(1, end);
         } else {
-            ret.name = path31.slice(startPart, startDot);
-            ret.base = path31.slice(startPart, end);
+            ret.name = path32.slice(startPart, startDot);
+            ret.base = path32.slice(startPart, end);
         }
-        ret.ext = path31.slice(startDot, end);
+        ret.ext = path32.slice(startDot, end);
     }
-    if (startPart > 0) ret.dir = path31.slice(0, startPart - 1);
+    if (startPart > 0) ret.dir = path32.slice(0, startPart - 1);
     else if (isAbsolute2) ret.dir = "/";
     return ret;
 }
@@ -4822,12 +5095,12 @@ function fromFileUrl1(url) {
     }
     return decodeURIComponent(url.pathname.replace(/%(?![0-9A-Fa-f]{2})/g, "%25"));
 }
-function toFileUrl1(path32) {
-    if (!isAbsolute1(path32)) {
+function toFileUrl1(path33) {
+    if (!isAbsolute1(path33)) {
         throw new TypeError("Must be an absolute path.");
     }
     const url = new URL("file:///");
-    url.pathname = encodeWhitespace(path32.replace(/%/g, "%25").replace(/\\/g, "%5C"));
+    url.pathname = encodeWhitespace(path33.replace(/%/g, "%25").replace(/\\/g, "%5C"));
     return url;
 }
 const mod1 = {
@@ -4843,14 +5116,14 @@ const mod1 = {
     basename: basename1,
     extname: extname1,
     format: format1,
-    parse: parse2,
+    parse: parse3,
     fromFileUrl: fromFileUrl1,
     toFileUrl: toFileUrl1
 };
 const path = isWindows ? mod : mod1;
 const { join: join2 , normalize: normalize2  } = path;
 const path1 = isWindows ? mod : mod1;
-const { basename: basename2 , delimiter: delimiter2 , dirname: dirname2 , extname: extname2 , format: format2 , fromFileUrl: fromFileUrl2 , isAbsolute: isAbsolute2 , join: join3 , normalize: normalize3 , parse: parse3 , relative: relative2 , resolve: resolve2 , sep: sep2 , toFileUrl: toFileUrl2 , toNamespacedPath: toNamespacedPath2 ,  } = path1;
+const { basename: basename2 , delimiter: delimiter2 , dirname: dirname2 , extname: extname2 , format: format2 , fromFileUrl: fromFileUrl2 , isAbsolute: isAbsolute2 , join: join3 , normalize: normalize3 , parse: parse4 , relative: relative2 , resolve: resolve2 , sep: sep2 , toFileUrl: toFileUrl2 , toNamespacedPath: toNamespacedPath2 ,  } = path1;
 const hexTable = new TextEncoder().encode("0123456789abcdef");
 function encodedLen(n) {
     return n * 2;
@@ -4867,15 +5140,6 @@ function encode(src) {
 function encodeToString(src) {
     return new TextDecoder().decode(encode(src));
 }
-function decode(b64) {
-    const binString = atob(b64);
-    const size = binString.length;
-    const bytes = new Uint8Array(size);
-    for(let i = 0; i < size; i++){
-        bytes[i] = binString.charCodeAt(i);
-    }
-    return bytes;
-}
 const osType1 = (()=>{
     if (globalThis.Deno != null) {
         return Deno.build.os;
@@ -4888,9 +5152,9 @@ const osType1 = (()=>{
 })();
 const isWindows1 = osType1 === "windows";
 const CHAR_FORWARD_SLASH1 = 47;
-function assertPath1(path33) {
-    if (typeof path33 !== "string") {
-        throw new TypeError(`Path must be a string. Received ${JSON.stringify(path33)}`);
+function assertPath1(path34) {
+    if (typeof path34 !== "string") {
+        throw new TypeError(`Path must be a string. Received ${JSON.stringify(path34)}`);
     }
 }
 function isPosixPathSeparator1(code17) {
@@ -4902,14 +5166,14 @@ function isPathSeparator1(code18) {
 function isWindowsDeviceRoot1(code19) {
     return code19 >= 97 && code19 <= 122 || code19 >= 65 && code19 <= 90;
 }
-function normalizeString1(path34, allowAboveRoot, separator, isPathSeparator11) {
+function normalizeString1(path35, allowAboveRoot, separator, isPathSeparator11) {
     let res = "";
     let lastSegmentLength = 0;
     let lastSlash = -1;
     let dots = 0;
     let code20;
-    for(let i = 0, len = path34.length; i <= len; ++i){
-        if (i < len) code20 = path34.charCodeAt(i);
+    for(let i = 0, len = path35.length; i <= len; ++i){
+        if (i < len) code20 = path35.charCodeAt(i);
         else if (isPathSeparator11(code20)) break;
         else code20 = CHAR_FORWARD_SLASH1;
         if (isPathSeparator11(code20)) {
@@ -4941,8 +5205,8 @@ function normalizeString1(path34, allowAboveRoot, separator, isPathSeparator11) 
                     lastSegmentLength = 2;
                 }
             } else {
-                if (res.length > 0) res += separator + path34.slice(lastSlash + 1, i);
-                else res = path34.slice(lastSlash + 1, i);
+                if (res.length > 0) res += separator + path35.slice(lastSlash + 1, i);
+                else res = path35.slice(lastSlash + 1, i);
                 lastSegmentLength = i - lastSlash - 1;
             }
             lastSlash = i;
@@ -4975,15 +5239,15 @@ function encodeWhitespace1(string) {
         return WHITESPACE_ENCODINGS1[c] ?? c;
     });
 }
-class DenoStdInternalError1 extends Error {
+class DenoStdInternalError2 extends Error {
     constructor(message){
         super(message);
         this.name = "DenoStdInternalError";
     }
 }
-function assert2(expr, msg = "") {
+function assert3(expr, msg178 = "") {
     if (!expr) {
-        throw new DenoStdInternalError1(msg);
+        throw new DenoStdInternalError2(msg178);
     }
 }
 const sep3 = "\\";
@@ -4993,55 +5257,55 @@ function resolve3(...pathSegments) {
     let resolvedTail = "";
     let resolvedAbsolute = false;
     for(let i = pathSegments.length - 1; i >= -1; i--){
-        let path35;
+        let path36;
         if (i >= 0) {
-            path35 = pathSegments[i];
+            path36 = pathSegments[i];
         } else if (!resolvedDevice) {
             if (globalThis.Deno == null) {
                 throw new TypeError("Resolved a drive-letter-less path without a CWD.");
             }
-            path35 = Deno.cwd();
+            path36 = Deno.cwd();
         } else {
             if (globalThis.Deno == null) {
                 throw new TypeError("Resolved a relative path without a CWD.");
             }
-            path35 = Deno.env.get(`=${resolvedDevice}`) || Deno.cwd();
-            if (path35 === undefined || path35.slice(0, 3).toLowerCase() !== `${resolvedDevice.toLowerCase()}\\`) {
-                path35 = `${resolvedDevice}\\`;
+            path36 = Deno.env.get(`=${resolvedDevice}`) || Deno.cwd();
+            if (path36 === undefined || path36.slice(0, 3).toLowerCase() !== `${resolvedDevice.toLowerCase()}\\`) {
+                path36 = `${resolvedDevice}\\`;
             }
         }
-        assertPath1(path35);
-        const len = path35.length;
+        assertPath1(path36);
+        const len = path36.length;
         if (len === 0) continue;
         let rootEnd = 0;
         let device = "";
         let isAbsolute11 = false;
-        const code21 = path35.charCodeAt(0);
+        const code21 = path36.charCodeAt(0);
         if (len > 1) {
             if (isPathSeparator1(code21)) {
                 isAbsolute11 = true;
-                if (isPathSeparator1(path35.charCodeAt(1))) {
+                if (isPathSeparator1(path36.charCodeAt(1))) {
                     let j = 2;
                     let last = j;
                     for(; j < len; ++j){
-                        if (isPathSeparator1(path35.charCodeAt(j))) break;
+                        if (isPathSeparator1(path36.charCodeAt(j))) break;
                     }
                     if (j < len && j !== last) {
-                        const firstPart = path35.slice(last, j);
+                        const firstPart = path36.slice(last, j);
                         last = j;
                         for(; j < len; ++j){
-                            if (!isPathSeparator1(path35.charCodeAt(j))) break;
+                            if (!isPathSeparator1(path36.charCodeAt(j))) break;
                         }
                         if (j < len && j !== last) {
                             last = j;
                             for(; j < len; ++j){
-                                if (isPathSeparator1(path35.charCodeAt(j))) break;
+                                if (isPathSeparator1(path36.charCodeAt(j))) break;
                             }
                             if (j === len) {
-                                device = `\\\\${firstPart}\\${path35.slice(last)}`;
+                                device = `\\\\${firstPart}\\${path36.slice(last)}`;
                                 rootEnd = j;
                             } else if (j !== last) {
-                                device = `\\\\${firstPart}\\${path35.slice(last, j)}`;
+                                device = `\\\\${firstPart}\\${path36.slice(last, j)}`;
                                 rootEnd = j;
                             }
                         }
@@ -5050,11 +5314,11 @@ function resolve3(...pathSegments) {
                     rootEnd = 1;
                 }
             } else if (isWindowsDeviceRoot1(code21)) {
-                if (path35.charCodeAt(1) === 58) {
-                    device = path35.slice(0, 2);
+                if (path36.charCodeAt(1) === 58) {
+                    device = path36.slice(0, 2);
                     rootEnd = 2;
                     if (len > 2) {
-                        if (isPathSeparator1(path35.charCodeAt(2))) {
+                        if (isPathSeparator1(path36.charCodeAt(2))) {
                             isAbsolute11 = true;
                             rootEnd = 3;
                         }
@@ -5072,7 +5336,7 @@ function resolve3(...pathSegments) {
             resolvedDevice = device;
         }
         if (!resolvedAbsolute) {
-            resolvedTail = `${path35.slice(rootEnd)}\\${resolvedTail}`;
+            resolvedTail = `${path36.slice(rootEnd)}\\${resolvedTail}`;
             resolvedAbsolute = isAbsolute11;
         }
         if (resolvedAbsolute && resolvedDevice.length > 0) break;
@@ -5080,38 +5344,38 @@ function resolve3(...pathSegments) {
     resolvedTail = normalizeString1(resolvedTail, !resolvedAbsolute, "\\", isPathSeparator1);
     return resolvedDevice + (resolvedAbsolute ? "\\" : "") + resolvedTail || ".";
 }
-function normalize4(path36) {
-    assertPath1(path36);
-    const len = path36.length;
+function normalize4(path37) {
+    assertPath1(path37);
+    const len = path37.length;
     if (len === 0) return ".";
     let rootEnd = 0;
     let device;
     let isAbsolute21 = false;
-    const code22 = path36.charCodeAt(0);
+    const code22 = path37.charCodeAt(0);
     if (len > 1) {
         if (isPathSeparator1(code22)) {
             isAbsolute21 = true;
-            if (isPathSeparator1(path36.charCodeAt(1))) {
+            if (isPathSeparator1(path37.charCodeAt(1))) {
                 let j = 2;
                 let last = j;
                 for(; j < len; ++j){
-                    if (isPathSeparator1(path36.charCodeAt(j))) break;
+                    if (isPathSeparator1(path37.charCodeAt(j))) break;
                 }
                 if (j < len && j !== last) {
-                    const firstPart = path36.slice(last, j);
+                    const firstPart = path37.slice(last, j);
                     last = j;
                     for(; j < len; ++j){
-                        if (!isPathSeparator1(path36.charCodeAt(j))) break;
+                        if (!isPathSeparator1(path37.charCodeAt(j))) break;
                     }
                     if (j < len && j !== last) {
                         last = j;
                         for(; j < len; ++j){
-                            if (isPathSeparator1(path36.charCodeAt(j))) break;
+                            if (isPathSeparator1(path37.charCodeAt(j))) break;
                         }
                         if (j === len) {
-                            return `\\\\${firstPart}\\${path36.slice(last)}\\`;
+                            return `\\\\${firstPart}\\${path37.slice(last)}\\`;
                         } else if (j !== last) {
-                            device = `\\\\${firstPart}\\${path36.slice(last, j)}`;
+                            device = `\\\\${firstPart}\\${path37.slice(last, j)}`;
                             rootEnd = j;
                         }
                     }
@@ -5120,11 +5384,11 @@ function normalize4(path36) {
                 rootEnd = 1;
             }
         } else if (isWindowsDeviceRoot1(code22)) {
-            if (path36.charCodeAt(1) === 58) {
-                device = path36.slice(0, 2);
+            if (path37.charCodeAt(1) === 58) {
+                device = path37.slice(0, 2);
                 rootEnd = 2;
                 if (len > 2) {
-                    if (isPathSeparator1(path36.charCodeAt(2))) {
+                    if (isPathSeparator1(path37.charCodeAt(2))) {
                         isAbsolute21 = true;
                         rootEnd = 3;
                     }
@@ -5136,12 +5400,12 @@ function normalize4(path36) {
     }
     let tail;
     if (rootEnd < len) {
-        tail = normalizeString1(path36.slice(rootEnd), !isAbsolute21, "\\", isPathSeparator1);
+        tail = normalizeString1(path37.slice(rootEnd), !isAbsolute21, "\\", isPathSeparator1);
     } else {
         tail = "";
     }
     if (tail.length === 0 && !isAbsolute21) tail = ".";
-    if (tail.length > 0 && isPathSeparator1(path36.charCodeAt(len - 1))) {
+    if (tail.length > 0 && isPathSeparator1(path37.charCodeAt(len - 1))) {
         tail += "\\";
     }
     if (device === undefined) {
@@ -5162,16 +5426,16 @@ function normalize4(path36) {
         return device;
     }
 }
-function isAbsolute3(path37) {
-    assertPath1(path37);
-    const len = path37.length;
+function isAbsolute3(path38) {
+    assertPath1(path38);
+    const len = path38.length;
     if (len === 0) return false;
-    const code23 = path37.charCodeAt(0);
+    const code23 = path38.charCodeAt(0);
     if (isPathSeparator1(code23)) {
         return true;
     } else if (isWindowsDeviceRoot1(code23)) {
-        if (len > 2 && path37.charCodeAt(1) === 58) {
-            if (isPathSeparator1(path37.charCodeAt(2))) return true;
+        if (len > 2 && path38.charCodeAt(1) === 58) {
+            if (isPathSeparator1(path38.charCodeAt(2))) return true;
         }
     }
     return false;
@@ -5182,17 +5446,17 @@ function join4(...paths) {
     let joined;
     let firstPart = null;
     for(let i = 0; i < pathsCount; ++i){
-        const path38 = paths[i];
-        assertPath1(path38);
-        if (path38.length > 0) {
-            if (joined === undefined) joined = firstPart = path38;
-            else joined += `\\${path38}`;
+        const path39 = paths[i];
+        assertPath1(path39);
+        if (path39.length > 0) {
+            if (joined === undefined) joined = firstPart = path39;
+            else joined += `\\${path39}`;
         }
     }
     if (joined === undefined) return ".";
     let needsReplace = true;
     let slashCount = 0;
-    assert2(firstPart != null);
+    assert3(firstPart != null);
     if (isPathSeparator1(firstPart.charCodeAt(0))) {
         ++slashCount;
         const firstLen = firstPart.length;
@@ -5289,10 +5553,10 @@ function relative3(from, to) {
         return toOrig.slice(toStart, toEnd);
     }
 }
-function toNamespacedPath3(path39) {
-    if (typeof path39 !== "string") return path39;
-    if (path39.length === 0) return "";
-    const resolvedPath = resolve3(path39);
+function toNamespacedPath3(path40) {
+    if (typeof path40 !== "string") return path40;
+    if (path40.length === 0) return "";
+    const resolvedPath = resolve3(path40);
     if (resolvedPath.length >= 3) {
         if (resolvedPath.charCodeAt(0) === 92) {
             if (resolvedPath.charCodeAt(1) === 92) {
@@ -5307,38 +5571,38 @@ function toNamespacedPath3(path39) {
             }
         }
     }
-    return path39;
+    return path40;
 }
-function dirname3(path40) {
-    assertPath1(path40);
-    const len = path40.length;
+function dirname3(path41) {
+    assertPath1(path41);
+    const len = path41.length;
     if (len === 0) return ".";
     let rootEnd = -1;
     let end = -1;
     let matchedSlash = true;
     let offset = 0;
-    const code25 = path40.charCodeAt(0);
+    const code25 = path41.charCodeAt(0);
     if (len > 1) {
         if (isPathSeparator1(code25)) {
             rootEnd = offset = 1;
-            if (isPathSeparator1(path40.charCodeAt(1))) {
+            if (isPathSeparator1(path41.charCodeAt(1))) {
                 let j = 2;
                 let last = j;
                 for(; j < len; ++j){
-                    if (isPathSeparator1(path40.charCodeAt(j))) break;
+                    if (isPathSeparator1(path41.charCodeAt(j))) break;
                 }
                 if (j < len && j !== last) {
                     last = j;
                     for(; j < len; ++j){
-                        if (!isPathSeparator1(path40.charCodeAt(j))) break;
+                        if (!isPathSeparator1(path41.charCodeAt(j))) break;
                     }
                     if (j < len && j !== last) {
                         last = j;
                         for(; j < len; ++j){
-                            if (isPathSeparator1(path40.charCodeAt(j))) break;
+                            if (isPathSeparator1(path41.charCodeAt(j))) break;
                         }
                         if (j === len) {
-                            return path40;
+                            return path41;
                         }
                         if (j !== last) {
                             rootEnd = offset = j + 1;
@@ -5347,18 +5611,18 @@ function dirname3(path40) {
                 }
             }
         } else if (isWindowsDeviceRoot1(code25)) {
-            if (path40.charCodeAt(1) === 58) {
+            if (path41.charCodeAt(1) === 58) {
                 rootEnd = offset = 2;
                 if (len > 2) {
-                    if (isPathSeparator1(path40.charCodeAt(2))) rootEnd = offset = 3;
+                    if (isPathSeparator1(path41.charCodeAt(2))) rootEnd = offset = 3;
                 }
             }
         }
     } else if (isPathSeparator1(code25)) {
-        return path40;
+        return path41;
     }
     for(let i = len - 1; i >= offset; --i){
-        if (isPathSeparator1(path40.charCodeAt(i))) {
+        if (isPathSeparator1(path41.charCodeAt(i))) {
             if (!matchedSlash) {
                 end = i;
                 break;
@@ -5371,29 +5635,29 @@ function dirname3(path40) {
         if (rootEnd === -1) return ".";
         else end = rootEnd;
     }
-    return path40.slice(0, end);
+    return path41.slice(0, end);
 }
-function basename3(path41, ext = "") {
+function basename3(path42, ext = "") {
     if (ext !== undefined && typeof ext !== "string") {
         throw new TypeError('"ext" argument must be a string');
     }
-    assertPath1(path41);
+    assertPath1(path42);
     let start = 0;
     let end = -1;
     let matchedSlash = true;
     let i;
-    if (path41.length >= 2) {
-        const drive = path41.charCodeAt(0);
+    if (path42.length >= 2) {
+        const drive = path42.charCodeAt(0);
         if (isWindowsDeviceRoot1(drive)) {
-            if (path41.charCodeAt(1) === 58) start = 2;
+            if (path42.charCodeAt(1) === 58) start = 2;
         }
     }
-    if (ext !== undefined && ext.length > 0 && ext.length <= path41.length) {
-        if (ext.length === path41.length && ext === path41) return "";
+    if (ext !== undefined && ext.length > 0 && ext.length <= path42.length) {
+        if (ext.length === path42.length && ext === path42) return "";
         let extIdx = ext.length - 1;
         let firstNonSlashEnd = -1;
-        for(i = path41.length - 1; i >= start; --i){
-            const code26 = path41.charCodeAt(i);
+        for(i = path42.length - 1; i >= start; --i){
+            const code26 = path42.charCodeAt(i);
             if (isPathSeparator1(code26)) {
                 if (!matchedSlash) {
                     start = i + 1;
@@ -5417,11 +5681,11 @@ function basename3(path41, ext = "") {
             }
         }
         if (start === end) end = firstNonSlashEnd;
-        else if (end === -1) end = path41.length;
-        return path41.slice(start, end);
+        else if (end === -1) end = path42.length;
+        return path42.slice(start, end);
     } else {
-        for(i = path41.length - 1; i >= start; --i){
-            if (isPathSeparator1(path41.charCodeAt(i))) {
+        for(i = path42.length - 1; i >= start; --i){
+            if (isPathSeparator1(path42.charCodeAt(i))) {
                 if (!matchedSlash) {
                     start = i + 1;
                     break;
@@ -5432,22 +5696,22 @@ function basename3(path41, ext = "") {
             }
         }
         if (end === -1) return "";
-        return path41.slice(start, end);
+        return path42.slice(start, end);
     }
 }
-function extname3(path42) {
-    assertPath1(path42);
+function extname3(path43) {
+    assertPath1(path43);
     let start = 0;
     let startDot = -1;
     let startPart = 0;
     let end = -1;
     let matchedSlash = true;
     let preDotState = 0;
-    if (path42.length >= 2 && path42.charCodeAt(1) === 58 && isWindowsDeviceRoot1(path42.charCodeAt(0))) {
+    if (path43.length >= 2 && path43.charCodeAt(1) === 58 && isWindowsDeviceRoot1(path43.charCodeAt(0))) {
         start = startPart = 2;
     }
-    for(let i = path42.length - 1; i >= start; --i){
-        const code27 = path42.charCodeAt(i);
+    for(let i = path43.length - 1; i >= start; --i){
+        const code27 = path43.charCodeAt(i);
         if (isPathSeparator1(code27)) {
             if (!matchedSlash) {
                 startPart = i + 1;
@@ -5469,7 +5733,7 @@ function extname3(path42) {
     if (startDot === -1 || end === -1 || preDotState === 0 || preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
         return "";
     }
-    return path42.slice(startDot, end);
+    return path43.slice(startDot, end);
 }
 function format3(pathObject) {
     if (pathObject === null || typeof pathObject !== "object") {
@@ -5477,8 +5741,8 @@ function format3(pathObject) {
     }
     return _format1("\\", pathObject);
 }
-function parse4(path43) {
-    assertPath1(path43);
+function parse5(path44) {
+    assertPath1(path44);
     const ret = {
         root: "",
         dir: "",
@@ -5486,28 +5750,28 @@ function parse4(path43) {
         ext: "",
         name: ""
     };
-    const len = path43.length;
+    const len = path44.length;
     if (len === 0) return ret;
     let rootEnd = 0;
-    let code28 = path43.charCodeAt(0);
+    let code28 = path44.charCodeAt(0);
     if (len > 1) {
         if (isPathSeparator1(code28)) {
             rootEnd = 1;
-            if (isPathSeparator1(path43.charCodeAt(1))) {
+            if (isPathSeparator1(path44.charCodeAt(1))) {
                 let j = 2;
                 let last = j;
                 for(; j < len; ++j){
-                    if (isPathSeparator1(path43.charCodeAt(j))) break;
+                    if (isPathSeparator1(path44.charCodeAt(j))) break;
                 }
                 if (j < len && j !== last) {
                     last = j;
                     for(; j < len; ++j){
-                        if (!isPathSeparator1(path43.charCodeAt(j))) break;
+                        if (!isPathSeparator1(path44.charCodeAt(j))) break;
                     }
                     if (j < len && j !== last) {
                         last = j;
                         for(; j < len; ++j){
-                            if (isPathSeparator1(path43.charCodeAt(j))) break;
+                            if (isPathSeparator1(path44.charCodeAt(j))) break;
                         }
                         if (j === len) {
                             rootEnd = j;
@@ -5518,35 +5782,35 @@ function parse4(path43) {
                 }
             }
         } else if (isWindowsDeviceRoot1(code28)) {
-            if (path43.charCodeAt(1) === 58) {
+            if (path44.charCodeAt(1) === 58) {
                 rootEnd = 2;
                 if (len > 2) {
-                    if (isPathSeparator1(path43.charCodeAt(2))) {
+                    if (isPathSeparator1(path44.charCodeAt(2))) {
                         if (len === 3) {
-                            ret.root = ret.dir = path43;
+                            ret.root = ret.dir = path44;
                             return ret;
                         }
                         rootEnd = 3;
                     }
                 } else {
-                    ret.root = ret.dir = path43;
+                    ret.root = ret.dir = path44;
                     return ret;
                 }
             }
         }
     } else if (isPathSeparator1(code28)) {
-        ret.root = ret.dir = path43;
+        ret.root = ret.dir = path44;
         return ret;
     }
-    if (rootEnd > 0) ret.root = path43.slice(0, rootEnd);
+    if (rootEnd > 0) ret.root = path44.slice(0, rootEnd);
     let startDot = -1;
     let startPart = rootEnd;
     let end = -1;
     let matchedSlash = true;
-    let i = path43.length - 1;
+    let i = path44.length - 1;
     let preDotState = 0;
     for(; i >= rootEnd; --i){
-        code28 = path43.charCodeAt(i);
+        code28 = path44.charCodeAt(i);
         if (isPathSeparator1(code28)) {
             if (!matchedSlash) {
                 startPart = i + 1;
@@ -5567,15 +5831,15 @@ function parse4(path43) {
     }
     if (startDot === -1 || end === -1 || preDotState === 0 || preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
         if (end !== -1) {
-            ret.base = ret.name = path43.slice(startPart, end);
+            ret.base = ret.name = path44.slice(startPart, end);
         }
     } else {
-        ret.name = path43.slice(startPart, startDot);
-        ret.base = path43.slice(startPart, end);
-        ret.ext = path43.slice(startDot, end);
+        ret.name = path44.slice(startPart, startDot);
+        ret.base = path44.slice(startPart, end);
+        ret.ext = path44.slice(startDot, end);
     }
     if (startPart > 0 && startPart !== rootEnd) {
-        ret.dir = path43.slice(0, startPart - 1);
+        ret.dir = path44.slice(0, startPart - 1);
     } else ret.dir = ret.root;
     return ret;
 }
@@ -5584,17 +5848,17 @@ function fromFileUrl3(url) {
     if (url.protocol != "file:") {
         throw new TypeError("Must be a file URL.");
     }
-    let path44 = decodeURIComponent(url.pathname.replace(/\//g, "\\").replace(/%(?![0-9A-Fa-f]{2})/g, "%25")).replace(/^\\*([A-Za-z]:)(\\|$)/, "$1\\");
+    let path45 = decodeURIComponent(url.pathname.replace(/\//g, "\\").replace(/%(?![0-9A-Fa-f]{2})/g, "%25")).replace(/^\\*([A-Za-z]:)(\\|$)/, "$1\\");
     if (url.hostname != "") {
-        path44 = `\\\\${url.hostname}${path44}`;
+        path45 = `\\\\${url.hostname}${path45}`;
     }
-    return path44;
+    return path45;
 }
-function toFileUrl3(path45) {
-    if (!isAbsolute3(path45)) {
+function toFileUrl3(path46) {
+    if (!isAbsolute3(path46)) {
         throw new TypeError("Must be an absolute path.");
     }
-    const [, hostname, pathname] = path45.match(/^(?:[/\\]{2}([^/\\]+)(?=[/\\](?:[^/\\]|$)))?(.*)/);
+    const [, hostname, pathname] = path46.match(/^(?:[/\\]{2}([^/\\]+)(?=[/\\](?:[^/\\]|$)))?(.*)/);
     const url = new URL("file:///");
     url.pathname = encodeWhitespace1(pathname.replace(/%/g, "%25"));
     if (hostname != null && hostname != "localhost") {
@@ -5618,7 +5882,7 @@ const mod2 = {
     basename: basename3,
     extname: extname3,
     format: format3,
-    parse: parse4,
+    parse: parse5,
     fromFileUrl: fromFileUrl3,
     toFileUrl: toFileUrl3
 };
@@ -5628,20 +5892,20 @@ function resolve4(...pathSegments) {
     let resolvedPath = "";
     let resolvedAbsolute = false;
     for(let i = pathSegments.length - 1; i >= -1 && !resolvedAbsolute; i--){
-        let path46;
-        if (i >= 0) path46 = pathSegments[i];
+        let path47;
+        if (i >= 0) path47 = pathSegments[i];
         else {
             if (globalThis.Deno == null) {
                 throw new TypeError("Resolved a relative path without a CWD.");
             }
-            path46 = Deno.cwd();
+            path47 = Deno.cwd();
         }
-        assertPath1(path46);
-        if (path46.length === 0) {
+        assertPath1(path47);
+        if (path47.length === 0) {
             continue;
         }
-        resolvedPath = `${path46}/${resolvedPath}`;
-        resolvedAbsolute = path46.charCodeAt(0) === CHAR_FORWARD_SLASH1;
+        resolvedPath = `${path47}/${resolvedPath}`;
+        resolvedAbsolute = path47.charCodeAt(0) === CHAR_FORWARD_SLASH1;
     }
     resolvedPath = normalizeString1(resolvedPath, !resolvedAbsolute, "/", isPosixPathSeparator1);
     if (resolvedAbsolute) {
@@ -5650,30 +5914,30 @@ function resolve4(...pathSegments) {
     } else if (resolvedPath.length > 0) return resolvedPath;
     else return ".";
 }
-function normalize5(path47) {
-    assertPath1(path47);
-    if (path47.length === 0) return ".";
-    const isAbsolute12 = path47.charCodeAt(0) === 47;
-    const trailingSeparator = path47.charCodeAt(path47.length - 1) === 47;
-    path47 = normalizeString1(path47, !isAbsolute12, "/", isPosixPathSeparator1);
-    if (path47.length === 0 && !isAbsolute12) path47 = ".";
-    if (path47.length > 0 && trailingSeparator) path47 += "/";
-    if (isAbsolute12) return `/${path47}`;
-    return path47;
-}
-function isAbsolute4(path48) {
+function normalize5(path48) {
     assertPath1(path48);
-    return path48.length > 0 && path48.charCodeAt(0) === 47;
+    if (path48.length === 0) return ".";
+    const isAbsolute12 = path48.charCodeAt(0) === 47;
+    const trailingSeparator = path48.charCodeAt(path48.length - 1) === 47;
+    path48 = normalizeString1(path48, !isAbsolute12, "/", isPosixPathSeparator1);
+    if (path48.length === 0 && !isAbsolute12) path48 = ".";
+    if (path48.length > 0 && trailingSeparator) path48 += "/";
+    if (isAbsolute12) return `/${path48}`;
+    return path48;
+}
+function isAbsolute4(path49) {
+    assertPath1(path49);
+    return path49.length > 0 && path49.charCodeAt(0) === 47;
 }
 function join5(...paths) {
     if (paths.length === 0) return ".";
     let joined;
     for(let i = 0, len = paths.length; i < len; ++i){
-        const path49 = paths[i];
-        assertPath1(path49);
-        if (path49.length > 0) {
-            if (!joined) joined = path49;
-            else joined += `/${path49}`;
+        const path50 = paths[i];
+        assertPath1(path50);
+        if (path50.length > 0) {
+            if (!joined) joined = path50;
+            else joined += `/${path50}`;
         }
     }
     if (!joined) return ".";
@@ -5737,17 +6001,17 @@ function relative4(from, to) {
         return to.slice(toStart);
     }
 }
-function toNamespacedPath4(path50) {
-    return path50;
+function toNamespacedPath4(path51) {
+    return path51;
 }
-function dirname4(path51) {
-    assertPath1(path51);
-    if (path51.length === 0) return ".";
-    const hasRoot = path51.charCodeAt(0) === 47;
+function dirname4(path52) {
+    assertPath1(path52);
+    if (path52.length === 0) return ".";
+    const hasRoot = path52.charCodeAt(0) === 47;
     let end = -1;
     let matchedSlash = true;
-    for(let i = path51.length - 1; i >= 1; --i){
-        if (path51.charCodeAt(i) === 47) {
+    for(let i = path52.length - 1; i >= 1; --i){
+        if (path52.charCodeAt(i) === 47) {
             if (!matchedSlash) {
                 end = i;
                 break;
@@ -5758,23 +6022,23 @@ function dirname4(path51) {
     }
     if (end === -1) return hasRoot ? "/" : ".";
     if (hasRoot && end === 1) return "//";
-    return path51.slice(0, end);
+    return path52.slice(0, end);
 }
-function basename4(path52, ext = "") {
+function basename4(path53, ext = "") {
     if (ext !== undefined && typeof ext !== "string") {
         throw new TypeError('"ext" argument must be a string');
     }
-    assertPath1(path52);
+    assertPath1(path53);
     let start = 0;
     let end = -1;
     let matchedSlash = true;
     let i;
-    if (ext !== undefined && ext.length > 0 && ext.length <= path52.length) {
-        if (ext.length === path52.length && ext === path52) return "";
+    if (ext !== undefined && ext.length > 0 && ext.length <= path53.length) {
+        if (ext.length === path53.length && ext === path53) return "";
         let extIdx = ext.length - 1;
         let firstNonSlashEnd = -1;
-        for(i = path52.length - 1; i >= 0; --i){
-            const code29 = path52.charCodeAt(i);
+        for(i = path53.length - 1; i >= 0; --i){
+            const code29 = path53.charCodeAt(i);
             if (code29 === 47) {
                 if (!matchedSlash) {
                     start = i + 1;
@@ -5798,11 +6062,11 @@ function basename4(path52, ext = "") {
             }
         }
         if (start === end) end = firstNonSlashEnd;
-        else if (end === -1) end = path52.length;
-        return path52.slice(start, end);
+        else if (end === -1) end = path53.length;
+        return path53.slice(start, end);
     } else {
-        for(i = path52.length - 1; i >= 0; --i){
-            if (path52.charCodeAt(i) === 47) {
+        for(i = path53.length - 1; i >= 0; --i){
+            if (path53.charCodeAt(i) === 47) {
                 if (!matchedSlash) {
                     start = i + 1;
                     break;
@@ -5813,18 +6077,18 @@ function basename4(path52, ext = "") {
             }
         }
         if (end === -1) return "";
-        return path52.slice(start, end);
+        return path53.slice(start, end);
     }
 }
-function extname4(path53) {
-    assertPath1(path53);
+function extname4(path54) {
+    assertPath1(path54);
     let startDot = -1;
     let startPart = 0;
     let end = -1;
     let matchedSlash = true;
     let preDotState = 0;
-    for(let i = path53.length - 1; i >= 0; --i){
-        const code30 = path53.charCodeAt(i);
+    for(let i = path54.length - 1; i >= 0; --i){
+        const code30 = path54.charCodeAt(i);
         if (code30 === 47) {
             if (!matchedSlash) {
                 startPart = i + 1;
@@ -5846,7 +6110,7 @@ function extname4(path53) {
     if (startDot === -1 || end === -1 || preDotState === 0 || preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
         return "";
     }
-    return path53.slice(startDot, end);
+    return path54.slice(startDot, end);
 }
 function format4(pathObject) {
     if (pathObject === null || typeof pathObject !== "object") {
@@ -5854,8 +6118,8 @@ function format4(pathObject) {
     }
     return _format1("/", pathObject);
 }
-function parse5(path54) {
-    assertPath1(path54);
+function parse6(path55) {
+    assertPath1(path55);
     const ret = {
         root: "",
         dir: "",
@@ -5863,8 +6127,8 @@ function parse5(path54) {
         ext: "",
         name: ""
     };
-    if (path54.length === 0) return ret;
-    const isAbsolute22 = path54.charCodeAt(0) === 47;
+    if (path55.length === 0) return ret;
+    const isAbsolute22 = path55.charCodeAt(0) === 47;
     let start;
     if (isAbsolute22) {
         ret.root = "/";
@@ -5876,10 +6140,10 @@ function parse5(path54) {
     let startPart = 0;
     let end = -1;
     let matchedSlash = true;
-    let i = path54.length - 1;
+    let i = path55.length - 1;
     let preDotState = 0;
     for(; i >= start; --i){
-        const code31 = path54.charCodeAt(i);
+        const code31 = path55.charCodeAt(i);
         if (code31 === 47) {
             if (!matchedSlash) {
                 startPart = i + 1;
@@ -5901,22 +6165,22 @@ function parse5(path54) {
     if (startDot === -1 || end === -1 || preDotState === 0 || preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
         if (end !== -1) {
             if (startPart === 0 && isAbsolute22) {
-                ret.base = ret.name = path54.slice(1, end);
+                ret.base = ret.name = path55.slice(1, end);
             } else {
-                ret.base = ret.name = path54.slice(startPart, end);
+                ret.base = ret.name = path55.slice(startPart, end);
             }
         }
     } else {
         if (startPart === 0 && isAbsolute22) {
-            ret.name = path54.slice(1, startDot);
-            ret.base = path54.slice(1, end);
+            ret.name = path55.slice(1, startDot);
+            ret.base = path55.slice(1, end);
         } else {
-            ret.name = path54.slice(startPart, startDot);
-            ret.base = path54.slice(startPart, end);
+            ret.name = path55.slice(startPart, startDot);
+            ret.base = path55.slice(startPart, end);
         }
-        ret.ext = path54.slice(startDot, end);
+        ret.ext = path55.slice(startDot, end);
     }
-    if (startPart > 0) ret.dir = path54.slice(0, startPart - 1);
+    if (startPart > 0) ret.dir = path55.slice(0, startPart - 1);
     else if (isAbsolute22) ret.dir = "/";
     return ret;
 }
@@ -5927,12 +6191,12 @@ function fromFileUrl4(url) {
     }
     return decodeURIComponent(url.pathname.replace(/%(?![0-9A-Fa-f]{2})/g, "%25"));
 }
-function toFileUrl4(path55) {
-    if (!isAbsolute4(path55)) {
+function toFileUrl4(path56) {
+    if (!isAbsolute4(path56)) {
         throw new TypeError("Must be an absolute path.");
     }
     const url = new URL("file:///");
-    url.pathname = encodeWhitespace1(path55.replace(/%/g, "%25").replace(/\\/g, "%5C"));
+    url.pathname = encodeWhitespace1(path56.replace(/%/g, "%25").replace(/\\/g, "%5C"));
     return url;
 }
 const mod3 = {
@@ -5948,21 +6212,21 @@ const mod3 = {
     basename: basename4,
     extname: extname4,
     format: format4,
-    parse: parse5,
+    parse: parse6,
     fromFileUrl: fromFileUrl4,
     toFileUrl: toFileUrl4
 };
 const path2 = isWindows1 ? mod2 : mod3;
 const { join: join6 , normalize: normalize6  } = path2;
 const path3 = isWindows1 ? mod2 : mod3;
-const { basename: basename5 , delimiter: delimiter5 , dirname: dirname5 , extname: extname5 , format: format5 , fromFileUrl: fromFileUrl5 , isAbsolute: isAbsolute5 , join: join7 , normalize: normalize7 , parse: parse6 , relative: relative5 , resolve: resolve5 , sep: sep5 , toFileUrl: toFileUrl5 , toNamespacedPath: toNamespacedPath5 ,  } = path3;
+const { basename: basename5 , delimiter: delimiter5 , dirname: dirname5 , extname: extname5 , format: format5 , fromFileUrl: fromFileUrl5 , isAbsolute: isAbsolute5 , join: join7 , normalize: normalize7 , parse: parse7 , relative: relative5 , resolve: resolve5 , sep: sep5 , toFileUrl: toFileUrl5 , toNamespacedPath: toNamespacedPath5 ,  } = path3;
 const MIME_DB_URL = 'https://cdn.jsdelivr.net/gh/jshttp/mime-db@master/db.json';
 const db = await (await fetch(MIME_DB_URL)).json();
-function lookup(path56) {
-    if (!path56 || typeof path56 !== 'string') {
+function lookup(path57) {
+    if (!path57 || typeof path57 !== 'string') {
         return false;
     }
-    const extension1 = extname5('x.' + path56).toLowerCase().substr(1);
+    const extension1 = extname5('x.' + path57).toLowerCase().substr(1);
     if (!extension1) {
         return false;
     }
@@ -6033,8 +6297,8 @@ class Server {
         this.#port = serverInit.port;
         this.#host = serverInit.hostname;
         this.#handler = serverInit.handler;
-        this.#onError = serverInit.onError ?? function(error) {
-            console.error(error);
+        this.#onError = serverInit.onError ?? function(error1) {
+            console.error(error1);
             return new Response("Internal Server Error", {
                 status: 500
             });
@@ -6183,96 +6447,7 @@ class Server {
         this.#httpConnections.delete(httpConn4);
     }
 }
-const base64abc = [
-    "A",
-    "B",
-    "C",
-    "D",
-    "E",
-    "F",
-    "G",
-    "H",
-    "I",
-    "J",
-    "K",
-    "L",
-    "M",
-    "N",
-    "O",
-    "P",
-    "Q",
-    "R",
-    "S",
-    "T",
-    "U",
-    "V",
-    "W",
-    "X",
-    "Y",
-    "Z",
-    "a",
-    "b",
-    "c",
-    "d",
-    "e",
-    "f",
-    "g",
-    "h",
-    "i",
-    "j",
-    "k",
-    "l",
-    "m",
-    "n",
-    "o",
-    "p",
-    "q",
-    "r",
-    "s",
-    "t",
-    "u",
-    "v",
-    "w",
-    "x",
-    "y",
-    "z",
-    "0",
-    "1",
-    "2",
-    "3",
-    "4",
-    "5",
-    "6",
-    "7",
-    "8",
-    "9",
-    "+",
-    "/", 
-];
-function encode1(data) {
-    const uint8 = typeof data === "string" ? new TextEncoder().encode(data) : data instanceof Uint8Array ? data : new Uint8Array(data);
-    let result = "", i;
-    const l = uint8.length;
-    for(i = 2; i < l; i += 3){
-        result += base64abc[uint8[i - 2] >> 2];
-        result += base64abc[(uint8[i - 2] & 0x03) << 4 | uint8[i - 1] >> 4];
-        result += base64abc[(uint8[i - 1] & 0x0f) << 2 | uint8[i] >> 6];
-        result += base64abc[uint8[i] & 0x3f];
-    }
-    if (i === l + 1) {
-        result += base64abc[uint8[i - 2] >> 2];
-        result += base64abc[(uint8[i - 2] & 0x03) << 4];
-        result += "==";
-    }
-    if (i === l) {
-        result += base64abc[uint8[i - 2] >> 2];
-        result += base64abc[(uint8[i - 2] & 0x03) << 4 | uint8[i - 1] >> 4];
-        result += base64abc[(uint8[i - 1] & 0x0f) << 2];
-        result += "=";
-    }
-    return result;
-}
-function decode1(b64) {
+function decode(b64) {
     const binString = atob(b64);
     const size = binString.length;
     const bytes = new Uint8Array(size);
@@ -6281,15 +6456,15 @@ function decode1(b64) {
     }
     return bytes;
 }
-class DenoStdInternalError2 extends Error {
+class DenoStdInternalError3 extends Error {
     constructor(message){
         super(message);
         this.name = "DenoStdInternalError";
     }
 }
-function assert3(expr, msg = "") {
+function assert4(expr, msg179 = "") {
     if (!expr) {
-        throw new DenoStdInternalError2(msg);
+        throw new DenoStdInternalError3(msg179);
     }
 }
 function createLiteralTestFunction(value) {
@@ -6521,7 +6696,7 @@ function toString1(cookie) {
         out.push("HttpOnly");
     }
     if (typeof cookie.maxAge === "number" && Number.isInteger(cookie.maxAge)) {
-        assert3(cookie.maxAge >= 0, "Max-Age must be an integer superior or equal to 0");
+        assert4(cookie.maxAge >= 0, "Max-Age must be an integer superior or equal to 0");
         out.push(`Max-Age=${cookie.maxAge}`);
     }
     if (cookie.domain) {
@@ -6549,14 +6724,14 @@ function validateName(name) {
         throw new TypeError(`Invalid cookie name: "${name}".`);
     }
 }
-function validatePath(path57) {
-    if (path57 == null) {
+function validatePath(path58) {
+    if (path58 == null) {
         return;
     }
-    for(let i = 0; i < path57.length; i++){
-        const c = path57.charAt(i);
+    for(let i = 0; i < path58.length; i++){
+        const c = path58.charAt(i);
         if (c < String.fromCharCode(0x20) || c > String.fromCharCode(0x7E) || c == ";") {
-            throw new Error(path57 + ": Invalid cookie path char '" + c + "'");
+            throw new Error(path58 + ": Invalid cookie path char '" + c + "'");
         }
     }
 }
@@ -6589,7 +6764,7 @@ function getCookies(headers) {
         const c = cookie.split(";");
         for (const kv of c){
             const [cookieKey, ...cookieVal] = kv.split("=");
-            assert3(cookieKey != null);
+            assert4(cookieKey != null);
             const key = cookieKey.trim();
             out[key] = cookieVal.join("=");
         }
@@ -6762,23 +6937,23 @@ class FileSystemProvider {
     constructor(config3){
         this.config = config3;
     }
-    async getFile(path58, repo) {
+    async getFile(path59, repo) {
         debugger;
-        path58 = `${this.config.root}${repo}/${path58.split('?')[0]}`;
+        path59 = `${this.config.root}/${repo}/${path59.split('?')[0]}`;
         try {
-            const result = await Deno.readFile(path58);
+            const result = await Deno.readFile(path59);
             return {
-                name: path58.split('/').pop(),
-                content: encode1(result)
+                name: path59.split('/').pop(),
+                content: result
             };
         } catch (e) {
             return null;
         }
     }
-    async getConfigFile(path59, repo) {
-        path59 = `${this.config.root}${repo}/${path59.split('?')[0]}`;
+    async getConfigFile(path60, repo) {
+        path60 = `${this.config.root}/${repo}/${path60.split('?')[0]}`;
         try {
-            const result = await Deno.readFile(path59);
+            const result = await Deno.readFile(path60);
             const content = (new TextDecoder).decode(result);
             return content;
         } catch (e) {
@@ -6791,51 +6966,66 @@ class GitHubProvider {
     constructor(config4){
         this.config = config4;
     }
-    async getFile(path60, repo) {
+    async getFile(path61, repo) {
         debugger;
         let url;
         try {
-            if (this.config.credentials) {
-                url = `https://api.github.com/repos/${this.config.root}/${repo}/contents/${path60}`;
+            if (this.config.auth) {
+                url = `https://api.github.com/repos/${this.config.root}/${repo}/contents/${path61}`;
                 const response = await fetch(url, {
                     method: 'GET',
                     headers: {
-                        'Authorization': `token ${this.config.credentials}`
+                        'Authorization': `token ${this.config.auth}`
                     }
                 });
                 const result = await response.json();
-                if (result.sha) return result;
-                else console.log(`WARNING: ${url} - ${result.message}`);
+                if (result.sha) return result.content = decode(result.content);
+                else warning(`${url} - ${result.message}`);
             } else {
-                const parts = path60.split('?');
+                const parts = path61.split('?');
                 const ref = parts[1] ? parts[1].split('=')[1] : 'main';
-                url = `https://raw.githubusercontent.com/${this.config.root}/${repo}/${ref}/${parts[0]}`;
+                if (parts[1]) path61 = parts[0];
+                url = `https://raw.githubusercontent.com/${this.config.root}/${repo}/${ref}/${path61}`;
                 const response = await fetch(url, {
                     method: 'GET'
                 });
                 const result = await response.text();
                 return {
-                    name: path60.split('/').pop(),
-                    content: result
+                    name: path61.split('/').pop(),
+                    content: new TextEncoder().encode(result)
                 };
             }
         } catch (e) {}
         return null;
     }
-    async getConfigFile(path61, repo) {
-        const url = `${this.config.root}${repo}/contents/${path61}`;
+    async getConfigFile(path62, repo) {
         try {
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `token ${this.config.credentials}`
+            if (this.config.auth) {
+                const url = `${this.config.root}${repo}/contents/${path62}`;
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `token ${this.config.auth}`
+                    }
+                });
+                const result = await response.json();
+                if (result.sha) {
+                    const content = (new TextDecoder).decode(decode(result.content));
+                    return content;
+                } else warning(`${url} - ${result.message}`);
+            } else {
+                const parts = path62.split('?');
+                const ref = parts[1] ? parts[1].split('=')[1] : 'main';
+                if (parts[1]) path62 = parts[0];
+                const url = `https://raw.githubusercontent.com/${this.config.root}/${repo}/${ref}/${path62}`;
+                const response = await fetch(url, {
+                    method: 'GET'
+                });
+                if (response.ok) {
+                    const result = await response.text();
+                    return result;
                 }
-            });
-            const result = await response.json();
-            if (result.sha) {
-                const content = (new TextDecoder).decode(decode1(result.content));
-                return content;
-            } else console.log(`WARNING: ${url} - ${result.message}`);
+            }
         } catch (e) {}
         return null;
     }
@@ -6862,22 +7052,22 @@ async function handleRequest1(request) {
     if (!url.pathname.startsWith('/~/') && url.hostname != '127.0.0.1' && !tenant) {
         mod5.context.state.tenantInitialized[url.hostname] = false;
         try {
-            let file = await mod5.context.repo.getConfigFile(`.tenants/${url.hostname}.json`, '.jsphere');
+            let file = await mod5.context.host.getConfigFile(`.tenants/${url.hostname}.json`, mod5.context.host?.config.repo);
             if (file === null) throw 'Tenant Not Registered';
             const tenantConfig = JSON.parse(file);
-            const Provider = mod5.context.repoProviders[tenantConfig.application.repo.provider];
+            file = await mod5.context.host.getConfigFile(`.applications/${tenantConfig.application}.json`, mod5.context.host?.config.repo);
+            if (file === null) throw 'Tenant Application Not Registered';
+            const appConfig = JSON.parse(file);
+            const Provider = mod5.context.hostProviders[appConfig.host.name];
             if (Provider) {
-                const appRepo = new Provider({
-                    root: tenantConfig.application.repo.root,
-                    credentials: tenantConfig.application.repo.credentials
+                const appProvider = new Provider({
+                    root: appConfig.host.root,
+                    auth: appConfig.host.auth
                 });
-                file = await appRepo.getConfigFile(`.applications/${tenantConfig.application.name}.json`, '.jsphere');
-                if (file === null) throw 'Tenant Application Not Specified';
-                const appConfig = JSON.parse(file);
                 mod5.context.tenants[url.hostname] = {
                     tenantConfig,
                     appConfig,
-                    repo: appRepo,
+                    appProvider,
                     packageItemCacheDTS: Date.now(),
                     packageItemCache: {}
                 };
@@ -6885,7 +7075,7 @@ async function handleRequest1(request) {
             mod5.context.state.tenantInitialized[url.hostname] = true;
         } catch (e) {
             mod5.context.state.tenantInitialized[url.hostname] = undefined;
-            console.log(`TenantInitHandler[${url.hostname}]`, e);
+            error(`TenantInitHandler[${url.hostname}]: ${e.message}`);
             response = new Response(`TenantInitHandler[${url.hostname}]`, {
                 status: 500
             });
@@ -6921,7 +7111,7 @@ async function runTestCommand(tenant, request) {
                 summary.testSuites.push(testRunner.testSuiteSummary);
                 continue;
             } catch (e) {
-                console.log(e);
+                error(e.message);
             }
         }
         summary.failures++;
@@ -7151,14 +7341,14 @@ const context = {
     },
     config: {},
     tenants: {},
-    repoProviders: {
+    hostProviders: {
         FileSystem: FileSystemProvider,
         GitHub: GitHubProvider
     },
-    repo: null
+    host: null
 };
 async function init() {
-    await setRepoProvider();
+    await setProjectHost();
     await setServerConfig();
     setRequestHandlers();
 }
@@ -7185,16 +7375,17 @@ async function handleRequest7(request, connInfo) {
         status: 404
     });
 }
-async function getPackageItem(tenant, path62) {
+async function getPackageItem(tenant, path63) {
     debugger;
-    const packageKey = path62.split('/')[1];
-    const ref = tenant.appConfig.packages[packageKey].tag;
+    const packageKey = path63.split('/')[1];
+    if (!tenant.appConfig.packages[packageKey]) return null;
+    const ref = tenant.appConfig.packages[packageKey].tag || 'main';
     const useLocalRepo = tenant.appConfig.packages[packageKey].useLocalRepo;
     let file;
     if (useLocalRepo === true) {
-        file = await context.repo.getFile(path62.substring(packageKey.length + 2) + (ref ? `?ref=${ref}` : ''), packageKey);
+        file = await context.host.getFile(path63.substring(packageKey.length + 2) + (ref ? `?ref=${ref}` : ''), packageKey);
     } else {
-        file = await tenant.repo.getFile(path62.substring(packageKey.length + 2) + (ref ? `?ref=${ref}` : ''), packageKey);
+        file = await tenant.appProvider.getFile(path63.substring(packageKey.length + 2) + (ref ? `?ref=${ref}` : ''), packageKey);
     }
     if (file !== null) {
         const extension = extname2(file.name);
@@ -7203,53 +7394,79 @@ async function getPackageItem(tenant, path62) {
         const eTag = file.sha || encodeToString(new Uint8Array(await crypto.subtle.digest("sha-256", cryptoData)));
         const packageItem = {
             contentType,
-            content: decode(file.content),
+            content: file.content,
             eTag
         };
         for(let entry in tenant.appConfig.packages[packageKey].packageItemConfig){
-            if (path62.startsWith(`/${packageKey}${entry}`)) {
+            if (path63.startsWith(`/${packageKey}${entry}`)) {
                 Object.assign(packageItem, tenant.appConfig.packages[packageKey].packageItemConfig[entry]);
             }
         }
-        tenant.packageItemCache[path62] = packageItem;
+        tenant.packageItemCache[path63] = packageItem;
         return packageItem;
     } else {
         return null;
     }
 }
-async function setRepoProvider() {
-    const envRepoProvider = Deno.env.get('REPO_PROVIDER') || 'FileSystem';
-    const envRepoRoot = Deno.env.get('REPO_ROOT') || Deno.cwd();
-    const envRepoCredentials = Deno.env.get('REPO_CREDENTIALS');
-    const Provider = context.repoProviders[envRepoProvider];
-    if (Provider) context.repo = new Provider({
-        root: envRepoRoot,
-        credentials: envRepoCredentials
+async function setProjectHost() {
+    let envHostName, envHostRoot, envHostAuth, envServerConfig;
+    if (Deno.env.get('USE_LOCAL_CONFIG') === 'true') {
+        envHostName = 'FileSystem';
+        envHostRoot = `${Deno.cwd().replaceAll('\\', '/')}/${Deno.env.get('LOCAL_ROOT')}`;
+        envHostAuth = '';
+        envServerConfig = Deno.env.get('LOCAL_CONFIG');
+        if (!envServerConfig || !envHostRoot) {
+            error('Local host is not properly configured.');
+            Deno.exit(0);
+        }
+    } else {
+        envHostName = Deno.env.get('REMOTE_HOST');
+        envHostRoot = Deno.env.get('REMOTE_ROOT');
+        envHostAuth = Deno.env.get('REMOTE_AUTH');
+        envServerConfig = Deno.env.get('REMOTE_CONFIG');
+        if (!envHostName || !envHostRoot || !envServerConfig) {
+            error('Remote host is not properly configured.');
+            Deno.exit(0);
+        }
+    }
+    const Host = context.hostProviders[envHostName];
+    if (Host) context.host = new Host({
+        name: envHostName,
+        root: envHostRoot,
+        auth: envHostAuth,
+        repo: envServerConfig
     });
-    else warning(`Repo provider '${envRepoProvider}' not a registered provider. Defaulting to FileSystem provider.`);
-    if (context.repo == null) context.repo = new FileSystemProvider({
-        root: envRepoRoot
-    });
-    info(`Repo provider: ${envRepoProvider}`);
-    info(`Repo root: ${envRepoRoot}`);
+    else warning(`Unsupported host '${envHostName}'. Defaulting to FileSystem.`);
+    if (context.host == null) context.host = new FileSystemProvider({});
+    info(`Host Name: ${envHostName}`);
+    info(`Host Root: ${envHostRoot}`);
 }
 async function setServerConfig() {
-    const envServerConfig = Deno.env.get('SERVER_CONFIG');
-    if (envServerConfig) {
-        const path63 = `.servers/${envServerConfig}.json`;
-        const content = await context.repo.getConfigFile(path63, '.jsphere');
-        if (content) {
-            const serverConfig = JSON.parse(content);
-            Object.assign(context.config, serverConfig);
-        } else warning(`Server is unprotected. Could not retrieve server configuration '.jsphere/${path63}'.`);
-    } else warning(`No server configuration was specified. Server is unprotected.`);
+    let envServerConfig;
+    let path64 = `server.json`;
+    if (context.host.config.name == 'FileSystem') {
+        envServerConfig = Deno.env.get('LOCAL_CONFIG');
+    } else {
+        envServerConfig = Deno.env.get('REMOTE_CONFIG');
+        const parts = envServerConfig?.split('/');
+        if (parts?.length === 2) {
+            envServerConfig = parts[1];
+            path64 = path64 + `?ref=${parts[0]}`;
+        }
+    }
+    const content = await context.host.getConfigFile(path64, envServerConfig);
+    if (content) {
+        const serverConfig = JSON.parse(content);
+        Object.assign(context.config, serverConfig);
+        info(`Server Config: ${envServerConfig}/${path64}`);
+    } else warning(`Could not retrieve server configuration '${envServerConfig}/${path64}'.`);
 }
 const mod5 = {
     context: context,
     init: init,
     handleRequest: handleRequest7,
     getPackageItem: getPackageItem,
-    setRepoProvider: setRepoProvider,
+    setProjectHost: setProjectHost,
     setServerConfig: setServerConfig
 };
 const mod6 = {
@@ -7391,6 +7608,13 @@ class ResponseObject {
         });
     };
 }
+const cmdArgs = parse1(Deno.args);
+const projectName = cmdArgs._[0].toString();
+const path4 = `${Deno.cwd()}/${projectName ? projectName + '/' : ''}.env`;
+await config({
+    path: path4,
+    export: true
+});
 await mod5.init();
 const serverPort = parseInt(Deno.env.get('SERVER_HTTP_PORT') || '80');
 const httpServer = new Server({
