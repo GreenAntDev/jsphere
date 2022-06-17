@@ -6456,6 +6456,41 @@ function decode(b64) {
     }
     return bytes;
 }
+const hexTable1 = new TextEncoder().encode("0123456789abcdef");
+function errInvalidByte(__byte) {
+    return new TypeError(`Invalid byte '${String.fromCharCode(__byte)}'`);
+}
+function errLength() {
+    return new RangeError("Odd length hex string");
+}
+function fromHexChar(__byte) {
+    if (48 <= __byte && __byte <= 57) return __byte - 48;
+    if (97 <= __byte && __byte <= 102) return __byte - 97 + 10;
+    if (65 <= __byte && __byte <= 70) return __byte - 65 + 10;
+    throw errInvalidByte(__byte);
+}
+function encode1(src) {
+    const dst = new Uint8Array(src.length * 2);
+    for(let i = 0; i < dst.length; i++){
+        const v = src[i];
+        dst[i * 2] = hexTable1[v >> 4];
+        dst[i * 2 + 1] = hexTable1[v & 0x0f];
+    }
+    return dst;
+}
+function decode1(src) {
+    const dst = new Uint8Array(src.length / 2);
+    for(let i = 0; i < dst.length; i++){
+        const a = fromHexChar(src[i * 2]);
+        const b = fromHexChar(src[i * 2 + 1]);
+        dst[i] = a << 4 | b;
+    }
+    if (src.length % 2 == 1) {
+        fromHexChar(src[dst.length * 2]);
+        throw errLength();
+    }
+    return dst;
+}
 class DenoStdInternalError3 extends Error {
     constructor(message){
         super(message);
@@ -7065,6 +7100,7 @@ async function handleRequest1(request) {
                     auth: appConfig.host.auth
                 });
                 mod5.context.tenants[url.hostname] = {
+                    state: {},
                     tenantConfig,
                     appConfig,
                     appProvider,
@@ -7334,6 +7370,36 @@ class Utils {
         const valueHash = encodeToString(new Uint8Array(await crypto.subtle.digest("sha-256", cryptoData)));
         return valueHash === hash;
     };
+    decrypt = async (data)=>{
+        const keyData = decode1(new TextEncoder().encode(Deno.env.get('CRYPTO_PRIVATE_KEY')));
+        const privateKey = await crypto.subtle.importKey('pkcs8', keyData, {
+            name: "RSA-OAEP",
+            hash: "SHA-512"
+        }, true, [
+            'decrypt'
+        ]);
+        const decBuffer = await crypto.subtle.decrypt({
+            name: "RSA-OAEP"
+        }, privateKey, decode1(new TextEncoder().encode(data)));
+        const decData = new Uint8Array(decBuffer);
+        const decString = new TextDecoder().decode(decData);
+        return decString;
+    };
+    encrypt = async (data)=>{
+        const keyData = decode1(new TextEncoder().encode(Deno.env.get('CRYPTO_PUBLIC_KEY')));
+        const publicKey = await crypto.subtle.importKey('spki', keyData, {
+            name: "RSA-OAEP",
+            hash: "SHA-512"
+        }, true, [
+            'encrypt'
+        ]);
+        const encBuffer = await crypto.subtle.encrypt({
+            name: "RSA-OAEP"
+        }, publicKey, new TextEncoder().encode(data));
+        const encData = new Uint8Array(encBuffer);
+        const encString = new TextDecoder().decode(encode1(encData));
+        return encString;
+    };
 }
 const context = {
     state: {
@@ -7516,7 +7582,7 @@ async function getAPIContext(request, routeParams) {
     const url = new URL(request.url);
     const tenant = mod5.context.tenants[url.hostname];
     const apiContext = {
-        tenant: getTenantContext(request),
+        tenant: await getTenantContext(request),
         request: await getRequestContext(request, routeParams),
         response: getResponseContext(request),
         appSettings: tenant.appConfig.appSettings || {},
@@ -7525,14 +7591,37 @@ async function getAPIContext(request, routeParams) {
     apiContext.feature = new Feature(apiContext);
     return apiContext;
 }
-function getTenantContext(request) {
+async function getTenantContext(request) {
     const url = new URL(request.url);
     const tenant = mod5.context.tenants[url.hostname];
+    const contextExtensions = tenant.tenantConfig.contextExtensions;
     const tenantContext = {
         id: tenant.id,
         hostname: tenant.hostname,
-        user: null
+        user: null,
+        db: null,
+        storage: null
     };
+    if (contextExtensions.db) {
+        const module = await import(contextExtensions.db);
+        tenantContext.db = await module.createInstance({
+            id: tenant.id,
+            hostname: tenant.hostname,
+            tenantConfig: tenant.tenantConfig,
+            appConfig: tenant.appConfig,
+            state: tenant.state
+        }, new Utils());
+    }
+    if (contextExtensions.storage) {
+        const module = await import(contextExtensions.storage);
+        tenantContext.storage = await module.createInstance({
+            id: tenant.id,
+            hostname: tenant.hostname,
+            tenantConfig: tenant.tenantConfig,
+            appConfig: tenant.appConfig,
+            state: tenant.state
+        }, new Utils());
+    }
     return tenantContext;
 }
 async function getRequestContext(request, routeParams) {

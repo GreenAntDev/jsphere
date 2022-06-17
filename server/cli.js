@@ -1120,6 +1120,41 @@ function parse1(args9, { "--": doubleDash = false , alias: alias3 = {} , boolean
     }
     return argv;
 }
+const hexTable = new TextEncoder().encode("0123456789abcdef");
+function errInvalidByte(__byte) {
+    return new TypeError(`Invalid byte '${String.fromCharCode(__byte)}'`);
+}
+function errLength() {
+    return new RangeError("Odd length hex string");
+}
+function fromHexChar(__byte) {
+    if (48 <= __byte && __byte <= 57) return __byte - 48;
+    if (97 <= __byte && __byte <= 102) return __byte - 97 + 10;
+    if (65 <= __byte && __byte <= 70) return __byte - 65 + 10;
+    throw errInvalidByte(__byte);
+}
+function encode(src) {
+    const dst = new Uint8Array(src.length * 2);
+    for(let i = 0; i < dst.length; i++){
+        const v = src[i];
+        dst[i * 2] = hexTable[v >> 4];
+        dst[i * 2 + 1] = hexTable[v & 0x0f];
+    }
+    return dst;
+}
+function decode(src) {
+    const dst = new Uint8Array(src.length / 2);
+    for(let i = 0; i < dst.length; i++){
+        const a = fromHexChar(src[i * 2]);
+        const b = fromHexChar(src[i * 2 + 1]);
+        dst[i] = a << 4 | b;
+    }
+    if (src.length % 2 == 1) {
+        fromHexChar(src[dst.length * 2]);
+        throw errLength();
+    }
+    return dst;
+}
 const rootName = Deno.cwd().replaceAll('\\', '/').split('/').pop();
 if (rootName != 'JSphereProjects') {
     error('The JSphere CLI will only run within a JSphereProjects directory.');
@@ -1140,6 +1175,9 @@ while(cmdLine = prompt(promptText)){
                 break;
             case 'create':
                 await processCreateCmd(cmdArgs);
+                break;
+            case 'crypto':
+                await processCryptoCmd(cmdArgs);
                 break;
             case 'quit':
                 await processQuitCmd(cmdArgs);
@@ -1281,6 +1319,70 @@ async function processCreateProjectCmd(cmdArgs) {
             ]
         });
     } else error(`Please provide a project name.`);
+}
+async function processCryptoCmd(cmdArgs) {
+    switch(cmdArgs._[1]){
+        case 'decrypt':
+            await processCryptoDecryptCmd(cmdArgs);
+            break;
+        case 'encrypt':
+            await processCryptoEncryptCmd(cmdArgs);
+            break;
+        case 'keys':
+            await processCryptoKeysCmd(cmdArgs);
+            break;
+    }
+}
+async function processCryptoDecryptCmd(cmdArgs) {
+    const keyData = decode(new TextEncoder().encode(cliConfig.currentConfig.CRYPTO_PRIVATE_KEY));
+    const privateKey = await crypto.subtle.importKey('pkcs8', keyData, {
+        name: "RSA-OAEP",
+        hash: "SHA-512"
+    }, true, [
+        'decrypt'
+    ]);
+    const decBuffer = await crypto.subtle.decrypt({
+        name: "RSA-OAEP"
+    }, privateKey, decode(new TextEncoder().encode(cliConfig.currentConfig[cmdArgs._[2].toString()])));
+    const decData = new Uint8Array(decBuffer);
+    const decString = new TextDecoder().decode(decData);
+    info(`DECRYPTED DATA: ${decString}\n`);
+}
+async function processCryptoEncryptCmd(cmdArgs) {
+    const keyData = decode(new TextEncoder().encode(cliConfig.currentConfig.CRYPTO_PUBLIC_KEY));
+    const publicKey = await crypto.subtle.importKey('spki', keyData, {
+        name: "RSA-OAEP",
+        hash: "SHA-512"
+    }, true, [
+        'encrypt'
+    ]);
+    const encBuffer = await crypto.subtle.encrypt({
+        name: "RSA-OAEP"
+    }, publicKey, new TextEncoder().encode(cliConfig.currentConfig[cmdArgs._[2].toString()]));
+    const encData = new Uint8Array(encBuffer);
+    const encString = new TextDecoder().decode(encode(encData));
+    info(`ENCRYPTED DATA: ${encString}\n`);
+}
+async function processCryptoKeysCmd(cmdArgs) {
+    const keyPair = await crypto.subtle.generateKey({
+        name: "RSA-OAEP",
+        modulusLength: 2048,
+        publicExponent: new Uint8Array([
+            1,
+            0,
+            1
+        ]),
+        hash: "SHA-512"
+    }, true, [
+        "encrypt",
+        "decrypt"
+    ]);
+    const exportedPublicKeyBuffer = await crypto.subtle.exportKey("spki", keyPair.publicKey);
+    const exportedPrivateKeyBuffer = await crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
+    const publicKeyHex = new TextDecoder().decode(encode(new Uint8Array(exportedPublicKeyBuffer)));
+    const privateKeyHex = new TextDecoder().decode(encode(new Uint8Array(exportedPrivateKeyBuffer)));
+    info(`PUBLIC KEY: ${publicKeyHex}\n`);
+    info(`PRIVATE KEY: ${privateKeyHex}\n`);
 }
 async function processQuitCmd(cmdArgs) {
     Deno.exit(0);
