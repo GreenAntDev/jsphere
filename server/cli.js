@@ -1404,8 +1404,9 @@ async function processRunCmd(cmdArgs) {
             'run',
             '--allow-all',
             '--no-check',
+            '--reload',
             '--inspect=0.0.0.0:9229',
-            'https://deno.land/x/jsphere/server.ts',
+            'https://deno.land/x/jsphere/server.js',
             `${cliConfig.currentProject}`
         ]
     });
