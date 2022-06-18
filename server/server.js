@@ -6973,7 +6973,6 @@ class FileSystemProvider {
         this.config = config3;
     }
     async getFile(path59, repo) {
-        debugger;
         path59 = `${this.config.root}/${repo}/${path59.split('?')[0]}`;
         try {
             const result = await Deno.readFile(path59);
@@ -7002,7 +7001,6 @@ class GitHubProvider {
         this.config = config4;
     }
     async getFile(path61, repo) {
-        debugger;
         let url;
         try {
             if (this.config.auth) {
@@ -7080,7 +7078,6 @@ async function handleRequest(request) {
     return response;
 }
 async function handleRequest1(request) {
-    debugger;
     let response = false;
     const url = new URL(request.url);
     let tenant = mod5.context.tenants[url.hostname];
@@ -7419,7 +7416,6 @@ async function init() {
     setRequestHandlers();
 }
 async function handleRequest7(request, connInfo) {
-    debugger;
     let response = false;
     let handlerIndex = 0;
     if (handlers.length > 0) {
@@ -7442,7 +7438,6 @@ async function handleRequest7(request, connInfo) {
     });
 }
 async function getPackageItem(tenant, path63) {
-    debugger;
     const packageKey = path63.split('/')[1];
     if (!tenant.appConfig.packages[packageKey]) return null;
     const ref = tenant.appConfig.packages[packageKey].tag || 'main';
